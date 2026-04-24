@@ -17,6 +17,7 @@ from langgraph.graph import StateGraph, END
 
 from backend.agents.decomposer import DecomposerAgent
 from backend.agents.reviewers import ReviewGate
+from backend.services.abac_enforcer import ABACEnforcer
 from backend.services.cost_alert_service import CostAlertService
 from backend.services.cost_service import CostService
 from backend.services.memory_service import MemoryService
@@ -27,7 +28,7 @@ from backend.services.tool_service import ToolService
 # State
 # ---------------------------------------------------------------------------
 
-class BatmanState(TypedDict):
+class BatmanState(TypedDict, total=False):
     """Immutable-style state carried through the Batman Mode LangGraph."""
     mission_id: str
     objective: str
@@ -40,6 +41,7 @@ class BatmanState(TypedDict):
     cost_usd: float
     review_results: List[dict]     # ReviewResult.model_dump() entries, 3 per approved task
     cost_alerts: List[dict]        # CostAlert.model_dump() entries fired during execution
+    mission_obj: Any                  # Optional Mission object for ABAC enforcement (Spec §5.3)
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +75,7 @@ class BatmanGraph:
         self.decomposer = decomposer or DecomposerAgent()
         self.review_gate = review_gate or ReviewGate()
         self.cost_alert_service = cost_alert_service or CostAlertService()
+        self.abac_enforcer = ABACEnforcer()  # Consolidated ABAC enforcement (Spec §5.3)
         self.abac_policy = abac_policy  # if None, SecurityReviewer uses its default
         self._graph = self._build_graph()
 
@@ -105,13 +108,15 @@ class BatmanGraph:
         return result["tasks"]
 
     async def execute_approved(
-        self, mission_id: str, objective: str, tasks: List[dict], approved_task_ids: List[str]
+        self, mission_id: str, objective: str, tasks: List[dict], approved_task_ids: List[str],
+        mission=None  # Optional Mission object for ABAC enforcement
     ) -> BatmanState:
         """
         Resume execution after human approval.
 
         Returns final BatmanState with results and cost.
         """
+        # Store mission object in state for ABAC enforcement (Spec §5.3)
         state: BatmanState = {
             "mission_id": mission_id,
             "objective": objective,
@@ -125,6 +130,9 @@ class BatmanGraph:
             "review_results": [],
             "cost_alerts": [],
         }
+        # Attach mission to state if provided (used by ABAC enforcer)
+        if mission is not None:
+            state["mission_obj"] = mission
         final = await self._graph.ainvoke(state)
         return final  # type: ignore[return-value]
 
@@ -312,6 +320,23 @@ class BatmanGraph:
             return new_state
 
         tool_name = task.get("suggested_tool") or "search_knowledge"
+
+        # ABAC Enforcement — consolidated enforcement point (Spec §5.3)
+        # Validate tool invocation before execution to prevent unauthorized use
+        if "mission_obj" in state and state.get("mission_obj") is not None:
+            mission = state["mission_obj"]
+            is_allowed, reason = self.abac_enforcer.can_invoke_tool(mission, tool_name)
+            if not is_allowed:
+                result = {
+                    "task_id": task_id,
+                    "task_name": task["name"],
+                    "status": "blocked",
+                    "output": None,
+                    "error": f"ABAC policy blocked tool invocation: {reason}",
+                }
+                new_state["execution_results"].append(result)
+                return new_state
+
 
         # Permission check (ABAC — spec §6)
         allowed, reason = self.tool_service.can_execute(

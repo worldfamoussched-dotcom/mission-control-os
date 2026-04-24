@@ -49,6 +49,7 @@ class Mission(Base):
     cost_limit_usd = Column(Float, nullable=True)
     total_cost_usd = Column(Float, default=0.0)
     tags = Column(JSON, default=list)
+    abac_policy = Column(JSON, nullable=True)  # Per-mission ABAC policy (Spec §2.2)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     completed_at = Column(DateTime, nullable=True)
 

@@ -252,3 +252,20 @@ class TestCostAlertIntegration:
 
         assert final["state"] == "completed"
         assert final["cost_alerts"] == []
+
+
+# ---------------------------------------------------------------------------
+# ABAC Enforcement Tests (Phase 2 §5.3)
+# ---------------------------------------------------------------------------
+
+class TestABACEnforcementIntegration:
+    """Test ABAC enforcer is available in BatmanGraph (Spec §5.3 enforcement consolidation)."""
+    
+    def test_batman_graph_has_abac_enforcer(self):
+        """Verify BatmanGraph initializes ABACEnforcer for consolidated enforcement."""
+        from backend.services.abac_enforcer import ABACEnforcer
+        
+        graph = _make_graph()
+        # Verify ABACEnforcer instance exists and is ready for enforcement
+        assert hasattr(graph, 'abac_enforcer')
+        assert isinstance(graph.abac_enforcer, ABACEnforcer)
