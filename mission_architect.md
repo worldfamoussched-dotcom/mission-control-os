@@ -44,14 +44,15 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
-### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~90%
+### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~95%
 - ReviewGate + CostAlertService wired into BatmanGraph
 - `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
 - Cost alerts fire from `_execute_task_node` with hysteresis
 - **Per-mission ABAC policy** — `Mission.abac_policy` field, plumbed API → Supervisor → ReviewGate
-- **Total: 106/106 passing**
+- **Total: 117/117 passing**
 - **UI:** Next.js 14.2.35 scaffold complete, `npx tsc --noEmit` green, typed api client, cockpit surfaces ReviewPanel + AlertsPanel
-- Remaining: Postgres persistence of reviews+alerts, tool_service ↔ review_gate ABAC consolidation
+- **Persistence:** `AuditService` writes review verdicts + cost alerts. SQLite-in-memory for tests, Postgres in prod (DATABASE_URL). Best-effort writes — workflow continues if persistence fails.
+- Remaining: tool_service ↔ review_gate ABAC consolidation (cleanup)
 
 ### Phase 3–5 — NOT STARTED
 
@@ -121,3 +122,4 @@ When spawning parallel agents, use these profiles:
 - [2026-04-24] `ui/lib/` is caught by Python-centric `.gitignore` (`lib/` pattern) — ui/lib/api.ts and ui/lib/types.ts are untracked. Needs a UI-specific exception in .gitignore before shipping UI work.
 - [2026-04-24] Three UI components (`ApprovalQueue.tsx`, `CostTracker.tsx`, `MissionGraph.tsx`) shipped with Python-style `"""..."""` docstrings on line 1 — TS parse errors. FIX: line-1 docstrings in `.tsx` files must be `/** ... */`. Phase 1 "TypeScript/Next.js config complete" claim in the build plan was false — no scaffold existed. Corrected in this session.
 - [2026-04-24] `missions.*` API methods returned `Promise<unknown>` because `apiRequest<T>` generic wasn't bound at call site. FIX: all methods now carry explicit return-type annotations (`Promise<Mission>` etc.) — makes typecheck enforce the backend contract at every call site instead of pushing it to callers.
+- [2026-04-24] DECIDED: AuditService takes a `session_factory` callable instead of holding a session directly. Lets tests inject SQLite in-memory and prod inject `SessionLocal` without subclassing. Persistence writes are best-effort (try/except, log nothing) so a transient DB hiccup never breaks a live mission — separate observability concern.

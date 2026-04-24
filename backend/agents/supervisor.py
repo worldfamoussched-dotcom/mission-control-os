@@ -21,6 +21,7 @@ from backend.agents.batman_graph import BatmanGraph
 from backend.agents.decomposer import DecomposerAgent
 from backend.agents.executor import ExecutorAgent
 from backend.agents.reviewers import ReviewGate
+from backend.services.audit_service import AuditService
 from backend.services.cost_alert_service import CostAlert, CostAlertService
 from backend.services.cost_service import CostService
 from backend.services.memory_service import MemoryService
@@ -42,12 +43,14 @@ class BatmanSupervisor:
         memory_service: MemoryService | None = None,
         decomposer: DecomposerAgent | None = None,
         cost_alert_service: CostAlertService | None = None,
+        audit_service: AuditService | None = None,
     ) -> None:
         self.tool_service = tool_service or ToolService()
         self.cost_service = cost_service or CostService()
         self.memory_service = memory_service or MemoryService()
         self.decomposer = decomposer or DecomposerAgent()
         self.cost_alert_service = cost_alert_service or CostAlertService()
+        self.audit_service = audit_service  # None = persistence disabled (legacy mode)
 
         self.graph = BatmanGraph(
             tool_service=self.tool_service,
@@ -116,6 +119,18 @@ class BatmanSupervisor:
 
             # --- Phase 2: review gate (spec Phase 2 §1) ---
             review_results = review_gate.run(task, mode=mode, abac_policy=abac_policy)
+            review_dump = [r.model_dump() for r in review_results]
+
+            # Persist review verdicts for audit trail (best-effort)
+            if self.audit_service is not None:
+                try:
+                    self.audit_service.record_review_results(
+                        mission_id, task_id, review_dump
+                    )
+                except Exception:  # noqa: BLE001
+                    # Persistence failure must not break the live workflow
+                    pass
+
             if not ReviewGate.all_passed(review_results):
                 blocking = [r for r in review_results if not r.passed]
                 block_reasons = "; ".join(
@@ -124,7 +139,7 @@ class BatmanSupervisor:
                 results.append({
                     "task_id": task_id,
                     "status": "review_blocked",
-                    "review_results": [r.model_dump() for r in review_results],
+                    "review_results": review_dump,
                     "error": block_reasons,
                     "cost_usd": 0.0,
                 })
@@ -142,7 +157,15 @@ class BatmanSupervisor:
             # --- Phase 2: cost alerting (spec Phase 2 cost alerts) ---
             alert = self.cost_alert_service.check(mission_id, total_cost)
             if alert is not None:
-                cost_alerts.append(alert.model_dump())
+                alert_dump = alert.model_dump()
+                cost_alerts.append(alert_dump)
+
+                # Persist alert (best-effort)
+                if self.audit_service is not None:
+                    try:
+                        self.audit_service.record_cost_alert(alert_dump)
+                    except Exception:  # noqa: BLE001
+                        pass
 
         overall_status = (
             "completed"

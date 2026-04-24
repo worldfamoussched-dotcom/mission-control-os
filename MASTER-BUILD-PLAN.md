@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~90% (reviewers + alerts + ABAC + UI scaffold + cockpit panels)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~95% (persistence layer in — only ABAC consolidation cleanup left)
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
@@ -127,7 +127,7 @@
 - [x] ABAC policy source-of-truth decided (Option A: Mission-object-native)
 - [x] `Mission.abac_policy` field + CreateMissionRequest plumb-through + Supervisor honors it
 - [ ] ABAC enforcement at all decision points (tool_service → review_gate consolidation)
-- [ ] Persist review_results + cost_alerts to Postgres (currently in-memory state only)
+- [x] Persist review_results + cost_alerts to durable store (AuditService — SQLite in tests, Postgres in prod via DATABASE_URL)
 - [x] Surface review_results + cost_alerts in the cockpit UI (ReviewPanel + AlertsPanel)
 
 ### Phase 2 Task Log
@@ -154,7 +154,7 @@
    - When None, SecurityReviewer falls back to its service default
    - 5 new unit tests (`tests/unit/test_mission_abac_policy.py`)
 
-**Total tests: 106/106 passing (102 unit + 4 integration)**
+**Total tests: 117/117 passing (113 unit + 4 integration)**
 **UI: scaffold complete, `npx tsc --noEmit` clean**
 
 5. ✅ **Next.js scaffold** — 2026-04-24
@@ -171,6 +171,14 @@
    - `AlertsPanel` — cost alerts with level badge (warning / critical), current/threshold, fired timestamp
    - Polls `/missions/:id/results` + `/missions/:id/alerts` every 3s alongside existing mission + cost polling
    - `npx tsc --noEmit` clean
+
+7. ✅ **Audit persistence layer** — 2026-04-24
+   - Spec §6–8 + §15–17: durable record of every review verdict and cost alert
+   - New ORM tables: `ReviewResultRecord`, `CostAlertRecord` in `backend/db/models.py`
+   - `backend/services/audit_service.py` — session-factory based, swappable between SQLite (tests) and Postgres (prod via `DATABASE_URL`)
+   - Wired into `BatmanSupervisor.execute_approved_tasks` — best-effort writes (live workflow never breaks on persistence failure)
+   - 11 new tests (8 unit on AuditService, 3 integration on Supervisor + AuditService end-to-end)
+   - **Total tests: 117/117 passing**
 
 ---
 
@@ -233,5 +241,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (cockpit review + alerts panels landed)
+**Last Updated:** 2026-04-24 (AuditService persistence layer landed)
 **Maintained By:** Mission Architect Agent

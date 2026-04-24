@@ -137,6 +137,50 @@ class MemoryEntry(Base):
     mission = relationship("Mission", back_populates="memory_entries")
 
 
+class ReviewResultRecord(Base):
+    """
+    Persisted ReviewGate result — one row per (task, reviewer).
+
+    Spec reference: Phase 2 §6–8 (audit trail for the review gate).
+    """
+    __tablename__ = "review_results"
+
+    id = Column(String(64), primary_key=True, index=True)
+    mission_id = Column(String(64), ForeignKey("missions.id"), nullable=False, index=True)
+    task_id = Column(String(64), nullable=False, index=True)
+    reviewer = Column(String(50), nullable=False)  # code | memory | security
+    passed = Column(Boolean, nullable=False)
+    reason = Column(Text, nullable=False)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+
+class CostAlertRecord(Base):
+    """
+    Persisted CostAlertService firing — one row per alert.
+
+    Spec reference: Phase 2 §15–17 (cost monitoring + audit).
+    """
+    __tablename__ = "cost_alerts"
+
+    id = Column(String(64), primary_key=True, index=True)
+    mission_id = Column(String(64), ForeignKey("missions.id"), nullable=False, index=True)
+    level = Column(String(20), nullable=False)  # warning | critical
+    current_cost = Column(Float, nullable=False)
+    threshold = Column(Float, nullable=False)
+    message = Column(Text, nullable=False)
+    fired_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+
 class ToolPermission(Base):
     """Tool usage permissions and constraints."""
     __tablename__ = "tool_permissions"
