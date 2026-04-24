@@ -44,14 +44,14 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
-### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~85%
+### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~90%
 - ReviewGate + CostAlertService wired into BatmanGraph
 - `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
 - Cost alerts fire from `_execute_task_node` with hysteresis
 - **Per-mission ABAC policy** — `Mission.abac_policy` field, plumbed API → Supervisor → ReviewGate
 - **Total: 106/106 passing**
-- **UI:** Next.js 14.2.35 scaffold complete, `npx tsc --noEmit` green, typed api client
-- Remaining: Postgres persistence of reviews+alerts, cockpit UI surfacing reviews+alerts, tool_service ↔ review_gate ABAC consolidation
+- **UI:** Next.js 14.2.35 scaffold complete, `npx tsc --noEmit` green, typed api client, cockpit surfaces ReviewPanel + AlertsPanel
+- Remaining: Postgres persistence of reviews+alerts, tool_service ↔ review_gate ABAC consolidation
 
 ### Phase 3–5 — NOT STARTED
 

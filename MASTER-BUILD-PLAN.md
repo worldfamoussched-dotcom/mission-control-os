@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~85% (reviewers + alerts + ABAC + UI scaffold + typed api client)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~90% (reviewers + alerts + ABAC + UI scaffold + cockpit panels)
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
@@ -128,7 +128,7 @@
 - [x] `Mission.abac_policy` field + CreateMissionRequest plumb-through + Supervisor honors it
 - [ ] ABAC enforcement at all decision points (tool_service → review_gate consolidation)
 - [ ] Persist review_results + cost_alerts to Postgres (currently in-memory state only)
-- [ ] Surface review_results + cost_alerts in the cockpit UI
+- [x] Surface review_results + cost_alerts in the cockpit UI (ReviewPanel + AlertsPanel)
 
 ### Phase 2 Task Log
 1. ✅ **Reviewer Agents** (`backend/agents/reviewers.py`) — commit `166b6c6`
@@ -165,6 +165,12 @@
    - Updated `dashboard.tsx` to use new `missions.approve()` (dropped stale `tasks.*` import)
    - Typed all `missions.*` API methods with explicit return generics
    - `*.tsbuildinfo` added to gitignore
+
+6. ✅ **Cockpit review + alerts surfacing** — 2026-04-24
+   - `ReviewPanel` — per-task reviewer verdicts (code / memory / security), passed vs blocked with reasons
+   - `AlertsPanel` — cost alerts with level badge (warning / critical), current/threshold, fired timestamp
+   - Polls `/missions/:id/results` + `/missions/:id/alerts` every 3s alongside existing mission + cost polling
+   - `npx tsc --noEmit` clean
 
 ---
 
@@ -227,5 +233,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (Next.js scaffold + typed API client)
+**Last Updated:** 2026-04-24 (cockpit review + alerts panels landed)
 **Maintained By:** Mission Architect Agent

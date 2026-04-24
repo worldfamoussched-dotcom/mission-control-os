@@ -28,6 +28,41 @@ interface CostBreakdown {
   breakdown?: Record<string, number>;
 }
 
+interface ReviewResultItem {
+  passed: boolean;
+  reason: string;
+  reviewer: 'code' | 'memory' | 'security';
+}
+
+interface TaskResult {
+  task_id: string;
+  task_name?: string;
+  status: 'completed' | 'review_blocked' | 'error' | string;
+  error?: string | null;
+  cost_usd?: number;
+  review_results?: ReviewResultItem[];
+}
+
+interface ResultsPayload {
+  mission_id: string;
+  results: TaskResult[];
+  total_cost_usd: number;
+}
+
+interface CostAlertItem {
+  mission_id: string;
+  current_cost: number;
+  threshold: number;
+  level: 'warning' | 'critical';
+  message: string;
+  fired_at: string;
+}
+
+interface AlertsPayload {
+  mission_id: string;
+  alerts: CostAlertItem[];
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -47,6 +82,8 @@ export default function Cockpit() {
   const [missionId, setMissionId] = useState<string | null>(null);
   const [mission, setMission] = useState<Mission | null>(null);
   const [costData, setCostData] = useState<CostBreakdown>({ total_cost: 0 });
+  const [results, setResults] = useState<TaskResult[]>([]);
+  const [alerts, setAlerts] = useState<CostAlertItem[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -71,21 +108,43 @@ export default function Cockpit() {
     }
   }, []);
 
+  const fetchResults = useCallback(async (id: string) => {
+    try {
+      const data = await apiFetch<ResultsPayload>(`/missions/${id}/results`);
+      setResults(data.results ?? []);
+    } catch {
+      // Review/results fetch is non-critical
+    }
+  }, []);
+
+  const fetchAlerts = useCallback(async (id: string) => {
+    try {
+      const data = await apiFetch<AlertsPayload>(`/missions/${id}/alerts`);
+      setAlerts(data.alerts ?? []);
+    } catch {
+      // Alert fetch is non-critical
+    }
+  }, []);
+
   useEffect(() => {
     if (!missionId) return;
 
     fetchMission(missionId);
     fetchCost(missionId);
+    fetchResults(missionId);
+    fetchAlerts(missionId);
 
     pollIntervalRef.current = setInterval(() => {
       fetchMission(missionId);
       fetchCost(missionId);
+      fetchResults(missionId);
+      fetchAlerts(missionId);
     }, 3000);
 
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [missionId, fetchMission, fetchCost]);
+  }, [missionId, fetchMission, fetchCost, fetchResults, fetchAlerts]);
 
   // Stop polling once mission reaches a terminal state
   useEffect(() => {
@@ -103,6 +162,8 @@ export default function Cockpit() {
     setActionError(null);
     setMission(null);
     setCostData({ total_cost: 0 });
+    setResults([]);
+    setAlerts([]);
     setMissionId(null);
 
     try {
@@ -129,10 +190,12 @@ export default function Cockpit() {
       await apiFetch(`/missions/${missionId}/execute`, { method: 'POST' });
       await fetchMission(missionId);
       await fetchCost(missionId);
+      await fetchResults(missionId);
+      await fetchAlerts(missionId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Approval failed');
     }
-  }, [missionId, fetchMission, fetchCost]);
+  }, [missionId, fetchMission, fetchCost, fetchResults, fetchAlerts]);
 
   const handleReject = useCallback(async (taskId: string) => {
     if (!missionId) return;
@@ -244,16 +307,26 @@ export default function Cockpit() {
           </div>
         </aside>
 
-        {/* Right — Execution Log */}
+        {/* Right — Execution Log + Phase 2 panels */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-800">
+          <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-4">
             <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-500">
               Execution Log
             </h2>
+            {alerts.length > 0 && (
+              <span className="text-xs font-mono text-amber-400">
+                {alerts.length} cost alert{alerts.length === 1 ? '' : 's'}
+              </span>
+            )}
           </div>
 
-          <div className="flex-1 overflow-hidden p-4">
-            <ExecutionLog tasks={allTasks} />
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4 border-b border-zinc-800">
+              <ExecutionLog tasks={allTasks} />
+            </div>
+
+            <ReviewPanel results={results} />
+            <AlertsPanel alerts={alerts} />
           </div>
         </main>
       </div>
@@ -264,6 +337,127 @@ export default function Cockpit() {
         breakdown={costData.breakdown}
       />
     </div>
+  );
+}
+
+function ReviewPanel({ results }: { results: TaskResult[] }) {
+  const reviewed = results.filter(r => r.review_results && r.review_results.length > 0);
+
+  return (
+    <section className="p-4 border-b border-zinc-800">
+      <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+        Review Gate
+      </h3>
+
+      {reviewed.length === 0 && (
+        <p className="text-zinc-600 text-sm font-mono">No reviewed tasks yet.</p>
+      )}
+
+      <ul className="space-y-2">
+        {reviewed.map(task => {
+          const blocked = task.status === 'review_blocked';
+          const reviewers = task.review_results ?? [];
+
+          return (
+            <li
+              key={task.task_id}
+              className={`p-3 rounded border font-mono text-xs ${
+                blocked
+                  ? 'bg-red-950/40 border-red-900 text-red-200'
+                  : 'bg-emerald-950/30 border-emerald-900/60 text-emerald-200'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-zinc-300">
+                  {task.task_name ?? task.task_id}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${
+                    blocked
+                      ? 'bg-red-900 text-red-200'
+                      : 'bg-emerald-900 text-emerald-200'
+                  }`}
+                >
+                  {blocked ? 'blocked' : 'passed'}
+                </span>
+              </div>
+
+              <ul className="space-y-1">
+                {reviewers.map((rr, idx) => (
+                  <li
+                    key={`${task.task_id}-${rr.reviewer}-${idx}`}
+                    className="flex items-start gap-2"
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 mt-1.5 rounded-full shrink-0 ${
+                        rr.passed ? 'bg-emerald-400' : 'bg-red-400'
+                      }`}
+                    />
+                    <span className="text-zinc-400">
+                      [{rr.reviewer}]{' '}
+                      <span className={rr.passed ? 'text-zinc-300' : 'text-red-300'}>
+                        {rr.reason}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function AlertsPanel({ alerts }: { alerts: CostAlertItem[] }) {
+  return (
+    <section className="p-4">
+      <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+        Cost Alerts
+      </h3>
+
+      {alerts.length === 0 && (
+        <p className="text-zinc-600 text-sm font-mono">No alerts fired.</p>
+      )}
+
+      <ul className="space-y-2">
+        {alerts.map((a, idx) => {
+          const critical = a.level === 'critical';
+          return (
+            <li
+              key={`${a.fired_at}-${idx}`}
+              className={`p-3 rounded border font-mono text-xs flex items-start justify-between gap-3 ${
+                critical
+                  ? 'bg-red-950/40 border-red-900 text-red-200'
+                  : 'bg-amber-950/40 border-amber-900/70 text-amber-200'
+              }`}
+            >
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${
+                      critical
+                        ? 'bg-red-900 text-red-200'
+                        : 'bg-amber-900 text-amber-200'
+                    }`}
+                  >
+                    {a.level}
+                  </span>
+                  <span className="text-zinc-400">{a.message}</span>
+                </div>
+                <div className="text-zinc-500 text-[11px]">
+                  ${a.current_cost.toFixed(4)} / ${a.threshold.toFixed(4)}
+                </div>
+              </div>
+              <time className="text-zinc-600 text-[10px] shrink-0">
+                {new Date(a.fired_at).toLocaleTimeString()}
+              </time>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
