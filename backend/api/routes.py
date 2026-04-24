@@ -47,6 +47,7 @@ _missions: dict[str, dict[str, Any]] = {}
 _tasks: dict[str, list[dict[str, Any]]] = {}     # mission_id → [task]
 _approvals: dict[str, list[dict[str, Any]]] = {}  # mission_id → [approval]
 _results: dict[str, list[dict[str, Any]]] = {}    # mission_id → [result]
+_alerts: dict[str, list[dict[str, Any]]] = {}     # mission_id → [cost_alert]
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +295,9 @@ async def execute_mission(mission_id: str) -> dict[str, Any]:
         mission["completed_at"] = datetime.now(timezone.utc)
 
     _results[mission_id] = summary["results"]
+    # Accumulate cost alerts fired during this execution run
+    existing_alerts = _alerts.get(mission_id, [])
+    _alerts[mission_id] = existing_alerts + summary.get("cost_alerts", [])
     return summary
 
 
@@ -325,6 +329,24 @@ async def get_cost(mission_id: str) -> dict[str, Any]:
         "cost_limit_usd": limit,
         "within_limit": (total <= limit) if limit else True,
         "percent_used": round((total / limit) * 100, 1) if limit else None,
+    }
+
+
+@router.get(
+    "/missions/{mission_id}/alerts",
+    summary="Get cost alerts fired during mission execution",
+)
+async def get_alerts(mission_id: str) -> dict[str, Any]:
+    """
+    Return the list of cost alerts fired during this mission's execution.
+
+    Each alert includes the cost level ("warning" | "critical"), the cost
+    at fire time, the configured threshold, and a human-readable message.
+    """
+    _get_mission_or_404(mission_id)
+    return {
+        "mission_id": mission_id,
+        "alerts": _alerts.get(mission_id, []),
     }
 
 

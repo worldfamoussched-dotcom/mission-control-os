@@ -21,6 +21,7 @@ from backend.agents.batman_graph import BatmanGraph
 from backend.agents.decomposer import DecomposerAgent
 from backend.agents.executor import ExecutorAgent
 from backend.agents.reviewers import ReviewGate
+from backend.services.cost_alert_service import CostAlert, CostAlertService
 from backend.services.cost_service import CostService
 from backend.services.memory_service import MemoryService
 from backend.services.tool_service import ToolService
@@ -40,11 +41,13 @@ class BatmanSupervisor:
         cost_service: CostService | None = None,
         memory_service: MemoryService | None = None,
         decomposer: DecomposerAgent | None = None,
+        cost_alert_service: CostAlertService | None = None,
     ) -> None:
         self.tool_service = tool_service or ToolService()
         self.cost_service = cost_service or CostService()
         self.memory_service = memory_service or MemoryService()
         self.decomposer = decomposer or DecomposerAgent()
+        self.cost_alert_service = cost_alert_service or CostAlertService()
 
         self.graph = BatmanGraph(
             tool_service=self.tool_service,
@@ -99,6 +102,7 @@ class BatmanSupervisor:
         review_gate = ReviewGate()
         results = []
         total_cost = 0.0
+        cost_alerts: list[dict[str, Any]] = []
 
         for task_id in approved_task_ids:
             task = next((t for t in all_tasks if t["id"] == task_id), None)
@@ -135,6 +139,11 @@ class BatmanSupervisor:
             results.append(result)
             total_cost += result.get("cost_usd", 0.0)
 
+            # --- Phase 2: cost alerting (spec Phase 2 cost alerts) ---
+            alert = self.cost_alert_service.check(mission_id, total_cost)
+            if alert is not None:
+                cost_alerts.append(alert.model_dump())
+
         overall_status = (
             "completed"
             if all(r["status"] == "completed" for r in results)
@@ -151,6 +160,7 @@ class BatmanSupervisor:
             "review_blocked_count": review_blocked_count,
             "results": results,
             "total_cost_usd": round(total_cost, 6),
+            "cost_alerts": cost_alerts,
         }
 
     # ------------------------------------------------------------------
