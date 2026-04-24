@@ -22,6 +22,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
+from backend.agents.jarvis_supervisor import JarvisSupervisor
 from backend.agents.supervisor import BatmanSupervisor
 from backend.api.schemas import (
     ApprovalRequest,
@@ -38,9 +39,19 @@ from backend.api.schemas import (
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Singleton supervisor (in-memory for MVP — replaced by DI in Phase 2)
+# Singleton supervisors — one per mode (Phase 1 Batman, Phase 3 Jarvis).
+# They share a tool/cost/memory backplane via a wiring step below so cost
+# alerts and audit history are consistent across modes for the same
+# mission_id, while ABAC + approval semantics are mode-specific.
 # ---------------------------------------------------------------------------
 _supervisor = BatmanSupervisor()
+_jarvis_supervisor = JarvisSupervisor(
+    tool_service=_supervisor.tool_service,
+    cost_service=_supervisor.cost_service,
+    memory_service=_supervisor.memory_service,
+    cost_alert_service=_supervisor.cost_alert_service,
+    audit_service=_supervisor.audit_service,
+)
 
 # In-memory stores (replaced by Postgres in Phase 2)
 _missions: dict[str, dict[str, Any]] = {}
@@ -107,11 +118,13 @@ def _mission_to_response(mission: dict[str, Any]) -> MissionResponse:
     summary="Create a mission and decompose it into tasks via Claude",
 )
 async def create_mission(req: CreateMissionRequest) -> MissionResponse:
-    """
-    Create a Batman Mode mission.
+    """Create a mission. Mode-aware:
 
-    Immediately calls Claude to decompose the objective into sub-tasks.
-    Tasks are returned with status=pending_approval ready for the approval queue.
+    - Batman: decompose immediately, return tasks for the approval queue.
+    - Jarvis: store mission only. Decomposition happens inside POST /run.
+      No premature Claude call, no orphan unapproved tasks.
+
+    Spec reference: Phase 1 §3 (Batman decompose), Phase 3 §9 (Jarvis single-shot).
     """
     mission_id = f"m_{uuid.uuid4().hex[:8]}"
     now = datetime.now(timezone.utc)
@@ -132,7 +145,13 @@ async def create_mission(req: CreateMissionRequest) -> MissionResponse:
     }
     _missions[mission_id] = mission
 
-    # --- Decompose via Claude (spec §3) ---
+    # Jarvis missions skip create-time decomposition — see /run.
+    if req.mode == MissionMode.JARVIS:
+        mission["state"] = MissionState.PENDING_APPROVAL  # ready-to-run sentinel
+        _tasks[mission_id] = []
+        return _mission_to_response(mission)
+
+    # --- Batman: Decompose via Claude (spec §3) ---
     try:
         tasks = await _supervisor.decompose_mission(mission_id, req.objective)
         _tasks[mission_id] = tasks
@@ -301,6 +320,60 @@ async def execute_mission(mission_id: str) -> dict[str, Any]:
     # Accumulate cost alerts fired during this execution run
     existing_alerts = _alerts.get(mission_id, [])
     _alerts[mission_id] = existing_alerts + summary.get("cost_alerts", [])
+    return summary
+
+
+@router.post(
+    "/missions/{mission_id}/run",
+    summary="Single-shot execution for Jarvis Mode (no approval gate)",
+)
+async def run_jarvis_mission(mission_id: str) -> dict[str, Any]:
+    """Single-shot Jarvis Mode execution — decompose, review, execute, return.
+
+    Spec reference: Phase 3 §9–11 (Jarvis = command-execute, no approval).
+    Mode mapping: Jarvis = Fractal Web Solutions dev agency.
+
+    Rejects if the mission is not in JARVIS mode — Batman missions must
+    use the /tasks → /approve → /execute flow.
+    """
+    mission = _get_mission_or_404(mission_id)
+
+    if mission["mode"] != MissionMode.JARVIS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"/run is for Jarvis Mode missions only. This mission is in "
+                f"'{mission['mode']}' mode — use /execute after approving tasks."
+            ),
+        )
+
+    mission["state"] = MissionState.EXECUTING
+
+    summary = await _jarvis_supervisor.run_mission(
+        mission_id=mission_id,
+        objective=mission["objective"],
+        abac_policy=mission.get("abac_policy"),
+    )
+
+    # Update mission state + cost
+    mission["total_cost_usd"] = (
+        mission.get("total_cost_usd", 0.0) + summary["total_cost_usd"]
+    )
+    mission["state"] = (
+        MissionState.COMPLETED
+        if summary["status"] == "completed"
+        else MissionState.FAILED
+        if summary["status"] == "failed"
+        else MissionState.EXECUTING
+    )
+    if summary["status"] == "completed":
+        mission["completed_at"] = datetime.now(timezone.utc)
+
+    # Persist into cockpit-bound stores so /results, /alerts work uniformly
+    _results[mission_id] = summary["results"]
+    existing_alerts = _alerts.get(mission_id, [])
+    _alerts[mission_id] = existing_alerts + summary.get("cost_alerts", [])
+
     return summary
 
 

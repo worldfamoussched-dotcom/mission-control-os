@@ -6,8 +6,8 @@ I am the **Mission Architect Agent** — the single, persistent orchestrator for
 
 I was instantiated by Nick London to build a multi-agent OS with three modes:
 - **Batman Mode** — Vampire Sex / London X artist command center (approval-gated)
-- **Jarvis Mode** — ATS / All the Smoke label command center (command-execute)
-- **Wakanda Mode** — Fractal Web Solutions dev agency command center (mixed)
+- **Jarvis Mode** — Fractal Web Solutions dev agency command center (command-execute, no approval)
+- **Wakanda Mode** — ATS / All the Smoke label command center (mixed / selective approval)
 
 ## Design Authority
 
@@ -44,16 +44,27 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
-### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~98%
+### Phase 2 — Reviewer Agents + Guardrails — 98% (ABAC consolidation cleanup deferred)
+### Phase 3 — ACTIVE (Jarvis & Wakanda Modes) ~33%
 - ReviewGate + CostAlertService wired into BatmanGraph
 - `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
 - Cost alerts fire from `_execute_task_node` with hysteresis
 - **Per-mission ABAC policy** — `Mission.abac_policy` field, plumbed API → Supervisor → ReviewGate
-- **Total: 119/119 passing**
-- **UI:** Next.js 14.2.35 scaffold complete, `npx tsc --noEmit` green, typed api client, cockpit surfaces ReviewPanel + AlertsPanel
+- **Total: 127/127 passing**
+- **UI:** Next.js 14.2.35 scaffold complete, `npx tsc --noEmit` green, typed api client, cockpit surfaces ReviewPanel + AlertsPanel (Batman cockpit only — Jarvis/Wakanda UI not yet built)
 - **Persistence:** `AuditService` writes review verdicts + cost alerts. SQLite-in-memory for tests, Postgres in prod (DATABASE_URL). Best-effort writes — workflow continues if persistence fails.
 - **End-to-end smoke:** Phase 2 cockpit-bound endpoints all verified through ASGI transport (no live keys, no Postgres). Happy path + injection block both green.
-- Remaining: tool_service ↔ review_gate ABAC consolidation (cleanup)
+
+### Phase 3 (Jarvis Mode) — Just Landed
+- `JarvisSupervisor` — single-shot run_mission(decompose → review → execute), shares Batman's services backplane
+- `POST /missions/{id}/run` — Jarvis-only route, rejects Batman missions with 400
+- Mode-aware `create_mission`: Jarvis skips create-time decomposition
+- **Mapping:** Jarvis = Fractal Web Solutions (dev agency, command-execute)
+
+### Remaining
+- Wakanda mode (selective approval) — needs design pass before code
+- Mode switching in cockpit UI (currently Batman-only)
+- tool_service ↔ review_gate ABAC consolidation (Phase 2 cleanup, deferred)
 
 ### Phase 3–5 — NOT STARTED
 
@@ -125,3 +136,6 @@ When spawning parallel agents, use these profiles:
 - [2026-04-24] `missions.*` API methods returned `Promise<unknown>` because `apiRequest<T>` generic wasn't bound at call site. FIX: all methods now carry explicit return-type annotations (`Promise<Mission>` etc.) — makes typecheck enforce the backend contract at every call site instead of pushing it to callers.
 - [2026-04-24] DECIDED: AuditService takes a `session_factory` callable instead of holding a session directly. Lets tests inject SQLite in-memory and prod inject `SessionLocal` without subclassing. Persistence writes are best-effort (try/except, log nothing) so a transient DB hiccup never breaks a live mission — separate observability concern.
 - [2026-04-24] Phase 2 demo strategy: do NOT run a live smoke against the real Anthropic API or a real Postgres instance. Two reasons: (1) hard-boundary on financial actions — calling Anthropic costs money + sends mission objectives to a third party, requires per-call approval; (2) Postgres isn't running locally. SOLUTION: ASGI-transport smoke test inside pytest that uses the mocked decomposer pattern from `test_batman_workflow.py`. Same fidelity as a live curl loop, none of the side effects.
+- [2026-04-24] CORRECTED mode-to-business mapping at Phase 3 entry. Prior identity section had **Jarvis = ATS / All the Smoke** (wrong) and **Wakanda = Fractal Web Solutions** (wrong). Confirmed by Nick: **Jarvis = Fractal Web Solutions** (dev agency, command-execute fits the dev shop workflow), **Wakanda = ATS / All the Smoke** (label, mixed approval fits release vs. metadata distinction). Identity section updated. Persisted to memory as `mode_business_mapping.md` so future sessions can't re-drift on this.
+- [2026-04-24] Found pre-existing tool registry inconsistency: `summarizer`, `text_generator`, `scheduler`, `search` are in CodeReviewer's allow-list AND in the SecurityReviewer ABAC defaults, but NOT in the ToolService tool registry. So a task using any of those passes review but gets blocked at the executor's `can_execute` check. Worked around in tests by using only `read_file` + `search_knowledge` (which are in both). PROPER FIX: tool_service ↔ review_gate consolidation (Phase 2 cleanup, deferred).
+- [2026-04-24] Found bug: `create_mission` was unconditionally calling Batman's decomposer for ALL modes, including Jarvis. For Jarvis missions this wasted a Claude call at create time, stored orphan unapproved tasks, and put the mission in PENDING_APPROVAL state inappropriately. FIX: branched create_mission on mode — Jarvis skips create-time decomposition; decompose happens inside `/run`.

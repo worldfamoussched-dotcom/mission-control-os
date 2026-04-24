@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~98% (smoke tested end-to-end through FastAPI; only ABAC consolidation cleanup left)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 98% | Phase 3 ~33% (Jarvis Mode complete, Wakanda + mode dispatch UI remaining)
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
@@ -154,7 +154,7 @@
    - When None, SecurityReviewer falls back to its service default
    - 5 new unit tests (`tests/unit/test_mission_abac_policy.py`)
 
-**Total tests: 119/119 passing (113 unit + 6 integration)**
+**Total tests: 127/127 passing (121 unit + 6 integration)**
 **UI: scaffold complete, `npx tsc --noEmit` clean**
 
 5. ✅ **Next.js scaffold** — 2026-04-24
@@ -188,10 +188,29 @@
 
 ## Phase 3 — Jarvis & Wakanda Modes (Weeks 8–10)
 
+### Mode → Business Mapping (CONFIRMED 2026-04-24)
+- **Batman** = Vampire Sex / London X (artist work, approval-gated)
+- **Jarvis** = Fractal Web Solutions (dev agency, command-execute)
+- **Wakanda** = ATS / All the Smoke (label, mixed/selective approval)
+
 ### Objectives
-- [ ] Jarvis mode (command-execute, no approval)
-- [ ] Wakanda mode (mixed, selective approval)
-- [ ] Mode switching + validation
+- [x] Jarvis mode (command-execute, no approval) — `JarvisSupervisor` + `POST /missions/{id}/run`
+- [ ] Wakanda mode (mixed, selective approval) — design TBD with Hotboxx-side workflow
+- [ ] Mode switching + validation in cockpit UI
+
+### Phase 3 Task Log
+1. ✅ **JarvisSupervisor** (`backend/agents/jarvis_supervisor.py`) — 2026-04-24
+   - Spec §9–11: single-shot decompose → review → execute → done
+   - Shares ToolService / CostService / MemoryService / CostAlertService / AuditService with Batman supervisor (one cost+audit backplane per mission_id)
+   - 6 unit tests (`tests/unit/test_jarvis_supervisor.py`) — happy path, injection block, cross-mode memory block, audit persistence, cost alerts, no-approval-methods invariant
+
+2. ✅ **POST /missions/{id}/run route** — 2026-04-24
+   - Spec §9: Jarvis single-shot lifecycle
+   - Rejects Batman missions with 400 (must use approve+execute flow)
+   - Mode-aware `create_mission`: Jarvis skips create-time decomposition (no premature Claude call, no orphan unapproved tasks)
+   - 2 integration tests (`tests/integration/test_jarvis_route.py`)
+
+**Total tests: 127/127 passing (121 unit + 6 integration)**
 
 ---
 
@@ -245,5 +264,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (Phase 2 cockpit smoke green)
+**Last Updated:** 2026-04-24 (Phase 3 — Jarvis Mode complete)
 **Maintained By:** Mission Architect Agent
