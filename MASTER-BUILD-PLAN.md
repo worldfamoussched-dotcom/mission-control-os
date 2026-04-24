@@ -1,20 +1,23 @@
 # Mission Control OS — Master Build Plan
 
-**Current Phase:** 0 (Foundation Setup)
-**Progress:** 25% (Pydantic Mission Object complete, tests passing)
+**Current Phase:** 1 (Batman Mode MVP)
+**Progress:** 0% of Phase 1 (Phase 0 complete: 100%)
 **Active Worktrees:** none
 **Blockers:** none
-**Next Approval Gate:** Folder structure + pyproject.toml (Phase 0 Step 2)
+**Next Approval Gate:** FastAPI backend + LangGraph agents (Phase 1 Step 1)
 
 ---
 
 ## Phase 0 — Foundation (Week 1)
 
 ### Objectives
-- [ ] Define Mission Object schema + tool registry + ABAC engine
-- [ ] Create folder structure + pyproject.toml + package.json
-- [ ] Initialize git repo + pre-commit hooks
-- [ ] Set up dev environment + testing framework
+- [x] Define Mission Object schema + tool registry + ABAC engine
+- [x] Create folder structure + pyproject.toml + package.json
+- [x] Initialize git repo + .gitignore
+- [x] Set up dev environment + testing framework
+- [x] TypeScript/Next.js config for UI
+- [x] Database schema (Postgres DDL)
+- [x] pytest fixtures + conftest
 
 ### Tasks
 1. **Define Mission Object Pydantic model** ✅ COMPLETE
