@@ -1,98 +1,134 @@
-# Mission Control OS Build Skills
+# Mission Control OS — Mission Architect Skills
+
+## How This Works
+
+These skills are loaded by Claude Code at session start via CLAUDE.md.
+Each skill is a reusable workflow. Cite the skill + spec section in every action.
+Claude Code is the Mission Architect — not Cursor, not a custom framework.
+
+---
 
 ## orchestrate-build
-**Description:** Master workflow for advancing the Mission Control OS project through phases 0–5.
-
-**When to use:** Every time we need to advance the build plan, create files, spawn sub-agents, or move to the next approval gate.
+**Description:** Master workflow for advancing Mission Control OS through phases 0–5.
+**Spec:** All sections.
 
 **Workflow:**
-1. Check MASTER-BUILD-PLAN.md for current phase, progress %, and blockers
-2. If parallel work is needed, create a git worktree for the sub-agent
-3. Generate exact files/code with line citations to the spec
-4. Run tests/linting only after human review (never auto-merge)
-5. Update MASTER-BUILD-PLAN.md with progress
-6. Output ONE next action with spec citation
-7. Ask for explicit approval before any risky action (merge, deploy, external API)
+1. Read MASTER-BUILD-PLAN.md — get phase, progress %, blockers
+2. Read mission_architect.md — restore context and decisions
+3. Report: Phase | Progress | Blockers | Next 3 tasks
+4. Output ONE next action with spec citation
+5. If work is parallelizable → spawn sub-agents via Agent tool
+6. Run tests after every code change
+7. Update MASTER-BUILD-PLAN.md on completion
+8. Ask for approval before risky actions
 
-**Example:** "Start Phase 0. Create Pydantic Mission Object model exactly as defined in spec section 2."
-
----
-
-## create-mission-object
-**Description:** Generate the foundational Pydantic Mission Object model + DB schema + validation rules.
-
-**When to use:** Phase 0, after approval of spec section 1–2.
-
-**What it produces:**
-- `backend/models/mission.py` — Mission dataclass with fields: id, mode, parent_id, state, approvers, memory_scope, cost_tracked, created_at, audit_log
-- `db/schema.sql` — Mission table with proper indices and constraints
-- `backend/validators.py` — Validation rules (mode enum, ABAC checks)
-- Tests in `tests/test_mission.py`
-
-**Citations:** Spec section 1–2 (Mission Object definition)
-
----
-
-## setup-langgraph
-**Description:** Create the initial LangGraph StateGraph for Batman Mode Lead Agent.
-
-**When to use:** Phase 1, after Mission Object is approved.
-
-**What it produces:**
-- `backend/agents/batman.py` — StateGraph definition with nodes: analyze, decide, execute, review
-- `backend/agents/state.py` — AgentState Pydantic model
-- `backend/agents/tools.py` — Tool invocations from the tool registry
-
-**Citations:** Spec section 3–5 (Batman mode flow)
-
----
-
-## setup-approval-queue
-**Description:** Create the approval queue + audit log infrastructure.
-
-**When to use:** Phase 1, after LangGraph is set up.
-
-**What it produces:**
-- `db/migrations/002_approval_queue.sql` — ApprovalRequest + AuditLog tables
-- `backend/approval.py` — ApprovalQueue class with store/retrieve/mark_approved logic
-- `backend/audit.py` — AuditLog class with immutable logging
-
-**Citations:** Spec section 6–8 (Approval queue + guardrails)
+**Never:** Auto-merge, deploy, call external APIs, or skip tests.
 
 ---
 
 ## build-cockpit-ui
-**Description:** Generate React cockpit UI (dashboard, mission list, approval queue view).
+**Description:** Build the React cockpit UI — dashboard, approval queue, execution log.
+**Spec:** §5–6 (Cockpit + Approval Queue)
+**Status:** NOT STARTED
 
-**When to use:** Phase 1, in parallel with backend work.
+**What to build:**
+- `ui/pages/cockpit.tsx` — Mission list + create form + detail view
+- `ui/components/TaskApprovalCard.tsx` — Approve/reject per task
+- `ui/components/ExecutionLog.tsx` — Real-time execution output
+- `ui/components/CostTracker.tsx` — Live cost vs. budget
+- `ui/lib/api.ts` — Typed fetch wrapper for backend
+- `ui/lib/types.ts` — TypeScript interfaces matching `backend/api/schemas.py`
 
-**What it produces:**
-- `ui/pages/cockpit.tsx` — Main dashboard with mission list + live approvals
-- `ui/components/MissionCard.tsx` — Individual mission display
-- `ui/components/ApprovalQueue.tsx` — Pending approvals
-- Tailwind styling + TypeScript types
+**Tech:** Next.js 14, Tailwind, TypeScript, shadcn/ui
+**API contract:** `backend/api/schemas.py` (MissionResponse, TaskDefinitionResponse, etc.)
+**Polling:** Every 2s (WebSocket in Phase 2)
+**Test target:** 75%+ component coverage
 
-**Citations:** Spec section 5–6 (Cockpit UI)
+**Sub-agent pattern:**
+> "You are the Frontend Builder. Build `ui/components/TaskApprovalCard.tsx`. It takes a `TaskDefinitionResponse` prop and renders approve/reject buttons. Calls `POST /api/missions/{id}/tasks/{tid}/approve`. Use Tailwind. TypeScript. Write Jest tests."
 
 ---
 
-## implement-abac
-**Description:** Build the full ABAC engine (role-based tool access, resource scoping).
+## build-integration-test
+**Description:** Write and run the full Batman workflow integration test.
+**Spec:** §3–8 (full lifecycle)
+**Status:** NOT STARTED
 
-**When to use:** Phase 4, after Batman/Jarvis/Wakanda modes are complete.
+**What to build:**
+- `tests/integration/test_batman_workflow.py` — Full lifecycle test
+- Create mission → verify tasks decomposed → approve all → execute → verify results + cost
 
-**What it produces:**
-- `backend/abac/engine.py` — ABAC enforcement
-- `backend/abac/rules.py` — Role + resource definitions
-- `backend/abac/middleware.py` — FastAPI middleware for access control
-- Tests in `tests/test_abac.py`
+**Mock:** DecomposerAgent (no real Claude calls in tests)
+**Coverage target:** Full path through batman_graph, routes, supervisor, executor
 
-**Citations:** Spec section 12–14 (ABAC + memory scoping)
+---
+
+## setup-postgres
+**Description:** Replace in-memory stores with real Postgres via SQLAlchemy + Alembic.
+**Spec:** §2 (Mission Object persistence), §8 (Audit log)
+**Status:** Phase 2
+
+**What to build:**
+- `db/migrations/` — Alembic migration files
+- Wire `backend/api/routes.py` to use `MissionService` with real DB
+- Wire `backend/services/memory_service.py` to use `MemoryEntry` ORM model
+- Wire `backend/services/cost_service.py` to persist cost records
+
+---
+
+## implement-reviewer-agents
+**Description:** Add QA, Rights, Booking, and Promo reviewer agents.
+**Spec:** §11 (Reviewer agents)
+**Status:** Phase 2
+
+**What to build:**
+- `backend/agents/reviewers/code_reviewer.py`
+- `backend/agents/reviewers/rights_reviewer.py`
+- `backend/agents/reviewers/booking_reviewer.py`
+- `backend/agents/reviewers/promo_reviewer.py`
+- Each reviews task output before it's marked complete
+- Reviewer agents call Claude with domain-specific prompts
+
+---
+
+## setup-jarvis-mode
+**Description:** Implement Jarvis Mode — command-execute, no approval required.
+**Spec:** §9 (Jarvis mode)
+**Status:** Phase 3
+
+**Key difference from Batman:** No approval gate. Tasks execute immediately after decomposition.
+**Reuse:** ~80% of Batman code. Only `_await_approval_node` and routing changes.
+**Safety:** Still has cost limits, loop detection, and audit logging.
+
+---
+
+## setup-wakanda-mode
+**Description:** Implement Wakanda Mode — mixed approval (selective per risk level).
+**Spec:** §10 (Wakanda mode)
+**Status:** Phase 3
+
+**Logic:** risk_level=low → auto-execute. risk_level=medium|high → require approval.
+**Reuse:** Batman + Jarvis patterns merged with conditional routing.
+
+---
+
+## implement-abac-full
+**Description:** Full ABAC policy engine — role-based tool access, resource scoping.
+**Spec:** §12–14 (ABAC + memory scoping)
+**Status:** Phase 4
+
+**What to build:**
+- `backend/abac/engine.py` — Policy evaluation
+- `backend/abac/rules.py` — Role + resource definitions per mode
+- `backend/abac/middleware.py` — FastAPI middleware
+- Enforce at tool call level, not just route level
 
 ---
 
 ## Notes
-- Each skill is independently testable
-- All skills must cite the spec section they implement
-- No skill should auto-merge or deploy — always ask for approval first
-- Worktrees are automatically cleaned up after sub-agent finishes
+
+- Every skill must cite the spec section it implements
+- No skill auto-merges or deploys — always ask for approval first
+- Sub-agents run via the Claude Code Agent tool, not external frameworks
+- Tests must pass before any task is marked complete
+- Update MASTER-BUILD-PLAN.md after every task

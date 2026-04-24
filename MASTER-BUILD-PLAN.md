@@ -1,10 +1,10 @@
 # Mission Control OS — Master Build Plan
 
-**Current Phase:** 1 (Batman Mode MVP)
-**Progress:** 0% of Phase 1 (Phase 0 complete: 100%)
+**Current Phase:** 2 (Reviewer Agents + Guardrails)
+**Progress:** Phase 0 complete: 100% | Phase 1 complete: 100%
 **Active Worktrees:** none
 **Blockers:** none
-**Next Approval Gate:** FastAPI backend + LangGraph agents (Phase 1 Step 1)
+**Next Approval Gate:** Reviewer Agent design (code, memory, security reviewers)
 
 ---
 
@@ -50,15 +50,70 @@
 ## Phase 1 — Batman Mode MVP (Weeks 2–5)
 
 ### Objectives
-- [ ] FastAPI + LangGraph backend
-- [ ] Postgres checkpointer + audit logs
-- [ ] React cockpit UI
-- [ ] Basic approval queue
+- [x] FastAPI app + routes scaffolded
+- [x] LangGraph BatmanGraph + BatmanLeadAgent built
+- [x] DecomposerAgent — Claude API call, JSON parsing, task stamping (13 tests ✅)
+- [x] Wire decomposer into batman_graph._decompose_node
+- [x] Executor agent (backend/agents/executor.py)
+- [x] React cockpit UI (cockpit.tsx + 3 components)
+- [x] Approval queue (TaskApprovalCard + routes)
+- [x] Integration test — full Batman workflow lifecycle (4 tests)
 
-### Key Files (TBD after Phase 0 approval)
-- `backend/agents/batman.py` — Lead agent
-- `db/schema.sql` — Mission, Task, AuditLog tables
-- `ui/pages/cockpit.tsx` — Main dashboard
+### Phase 1 Task Log
+1. ✅ **DecomposerAgent** (`backend/agents/decomposer.py`) — 2026-04-24
+   - Spec §3: mission objective → structured sub-tasks via Claude
+   - 13 unit tests passing, all Claude calls mocked
+   - Added: anthropic>=0.25.0, pytest-asyncio to pyproject.toml
+
+2. ✅ **BatmanGraph wired** (`backend/agents/batman_graph.py`) — 2026-04-24
+   - Spec §3–5: real LangGraph StateGraph with decompose → approve → execute → complete
+   - DecomposerAgent injected into _decompose_node (no more hardcoded tasks)
+   - Immutable state pattern (copy.copy on every node)
+   - MAX_ITERATIONS=10 loop guard
+   - 13 unit tests passing
+
+3. ✅ **ExecutorAgent** (`backend/agents/executor.py`) — 2026-04-24
+   - Spec §4–5: ABAC permission check → tool execute → cost track → memory store
+   - 7 unit tests passing
+
+4. ✅ **BatmanSupervisor** (`backend/agents/supervisor.py`) — 2026-04-24
+   - Spec §3–5: orchestrates decompose + execute lifecycle
+   - Wires all services together; used by FastAPI routes
+
+5. ✅ **Routes rewired** (`backend/api/routes.py`) — 2026-04-24
+   - Spec §6–8: all routes now go through BatmanSupervisor
+   - New endpoints: /execute, /results, /cost, /memory
+   - Full Batman approval gate enforced
+
+6. ✅ **CostService model name prefix matching** — 2026-04-24
+   - claude-opus-4-5 now resolves correctly to opus pricing tier
+
+7. ✅ **React Cockpit UI** — 2026-04-24
+   - Spec §6–8: Batman command center dashboard
+   - `ui/pages/cockpit.tsx` — mission input, approval queue, execution log, cost bar
+   - `ui/components/TaskApprovalCard.tsx` — per-task approve/reject
+   - `ui/components/ExecutionLog.tsx` — scrollable task result log
+   - `ui/components/CostTrackerWidget.tsx` — compact cost display
+
+8. ✅ **Integration Test** — 2026-04-24
+   - Spec §3–8: full Batman workflow lifecycle
+   - `tests/integration/test_batman_workflow.py` — 4 tests (happy path, guardrail, 404, decomposer called)
+   - SQLAlchemy upgraded 2.0.23 → 2.0.49 (Python 3.13 compatibility)
+
+**Total tests: 56/56 passing (52 unit + 4 integration)**
+
+### Known Tech Debt
+- `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI work.
+
+### Key Files
+- `backend/agents/decomposer.py` ✅
+- `backend/agents/batman_graph.py` ✅
+- `backend/agents/executor.py` ✅
+- `backend/agents/supervisor.py` ✅
+- `backend/api/routes.py` ✅
+- `db/schema.sql` ✅
+- `ui/pages/cockpit.tsx` ✅
+- `tests/integration/test_batman_workflow.py` ✅
 
 ---
 

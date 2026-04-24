@@ -7,6 +7,7 @@ class CostService:
     """Service for cost estimation and tracking."""
 
     # Anthropic pricing (as of Phase 1)
+    # Keys support prefix matching: "claude-opus-4-5" resolves to "claude-opus"
     PRICING = {
         "claude-opus": {
             "input_tokens": 0.015 / 1000,      # $0.015 per 1K tokens
@@ -45,7 +46,13 @@ class CostService:
             Cost in USD
         """
         model = model or self.model
+        # Support full model names like "claude-opus-4-5" by prefix match
         pricing = self.PRICING.get(model)
+        if not pricing:
+            for key in self.PRICING:
+                if model.startswith(key):
+                    pricing = self.PRICING[key]
+                    break
 
         if not pricing:
             return 0.0
