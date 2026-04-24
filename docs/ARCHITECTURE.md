@@ -1,42 +1,78 @@
-# Mission Control OS — Architecture
+# Mission Control OS — Architecture & Design Principles
 
-## System Overview
+**Status:** Phase 0 Complete → Phase 1 (Batman Mode MVP) Ready
 
-Mission Control OS manages AI agent workflows through three execution modes, immutable audit trails, and role-based access control.
+**Purpose:** Bridge Grok research (17-section design) with Phase 1 spec (implementation roadmap).
 
-## Core Data Model
+---
 
-**Mission Object** — Fundamental unit with:
-- Three execution modes: BATMAN (full approval), JARVIS (auto-execute), WAKANDA (selective approval)
-- Immutable audit trail tracking all events with costs
-- Role-based approval chain enforcement
-- Tool access restrictions per mission
-- Memory scoping (isolated/shared/global)
+## 10 Core Pillars → Phase 1 Files
 
-**Audit Trail** — Append-only, immutable events recording every action.
+### 1. Hierarchical Orchestration (LangGraph)
+- `backend/agents/batman_lead.py` — Mission supervisor
+- `backend/agents/batman_graph.py` — LangGraph StateGraph
 
-**Tool Registry** — Centralized tool definitions with per-mode constraints.
+### 2. Mission Object (Source of Truth)  
+- `backend/models/mission.py` — Mission class + AuditLogEntry
+- `backend/db/models.py` — ORM + missions table
 
-**ABAC Engine** — Role-based access control, deny-by-default.
+### 3. ABAC + Least Privilege
+- `backend/models/mission.py` — ToolRegistry, ABACEngine (Phase 0)
+- `backend/services/tool_service.py` — Permission checks
+- `backend/agents/tool_wrapper.py` — Safe execution
 
-## Database Schema
+### 4. Agent Cockpit (Real-Time Visibility)
+- `ui/pages/dashboard.tsx` — Main cockpit
+- `ui/components/MissionGraph.tsx` — Graph visualization
+- `ui/components/CostTracker.tsx` — Real-time cost
+- `ui/pages/api/webhooks.ts` — WebSocket updates
 
-- `missions` — Mission records
-- `approval_records` — Immutable approval decisions
-- `audit_log` — Append-only event trail
-- `mission_approvers`, `mission_allowed_tools` — Many-to-many relationships
-- `tool_definitions`, `abac_policies` — Tool and access control definitions
+### 5. Approval Queue (Human-in-the-Loop)
+- `backend/agents/batman_graph.py` — interrupt_before nodes
+- `backend/api/routes.py` — Approval endpoints
+- `ui/components/ApprovalQueue.tsx` — Queue UI
 
-## Execution Modes
+### 6. Scoped Memory (No Cross-Mode Leakage)
+- `backend/services/memory_service.py` — Scoped queries
+- `backend/db/models.py` — memory_entries table
 
-| Mode | Approvers | Executable | Use Case |
-|------|-----------|-----------|----------|
-| BATMAN | Required | All approve | High-stakes decisions |
-| JARVIS | None | Always | Autonomous execution |
-| WAKANDA | Optional | Any approve | Mixed workflows |
+### 7. Structured Handoffs (No Chat)
+- `backend/models/mission.py` — HandoffPacket, TaskDefinition
+- `backend/services/lock_service.py` — Resource locks
+- `backend/agents/batman_graph.py` — Edge conditions
 
-## Testing
+### 8. Audit Log + Replay
+- `backend/db/schema.sql` — immutable audit_logs
+- `backend/api/routes.py` — Replay endpoint
+- `backend/services/replay_service.py` — Load + execute
 
-16 unit tests covering Mission creation, approval chains, audit immutability, cost tracking, tool registry, ABAC enforcement.
+### 9. Cost & Token Guardrails
+- `backend/services/execution_service.py` — Loop/duplicate detection
+- `backend/services/cost_service.py` — USD conversion + mission caps
 
-All passing with 100% coverage of core logic.
+### 10. Failure Handling & Escalation
+- `backend/agents/batman_graph.py` — max_iterations per node
+- `backend/agents/batman_lead.py` — Escalation logic
+- `backend/services/mission_service.py` — freeze_mission()
+
+---
+
+## Tech Stack
+
+- **Orchestration:** LangGraph + FastAPI
+- **Database:** Postgres + PGVector + Redis
+- **Frontend:** React + Next.js + Tailwind
+- **Meta-Orchestrator:** Mission Architect Agent (Cursor 3)
+
+---
+
+## Build Next
+
+Mission Architect Agent (Cursor 3) orchestrates Phase 1:
+1. System prompt enforces this architecture
+2. Skill: `orchestrate-build` — reusable workflows
+3. Obsidian: MASTER-BUILD-PLAN.md — live tasks
+4. Automation: Daily kickoff
+
+**First command to Agent:**
+> Start Phase 1. Create folder structure, pyproject.toml, FastAPI skeleton, LangGraph Batman Lead agent. Align with ARCHITECTURE.md + SPEC_PHASE1_BATMAN_MVP.md.
