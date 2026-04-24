@@ -1,110 +1,113 @@
-# MASTER BUILD PLAN — Mission Control OS
+# Mission Control OS — Master Build Plan
 
-**Current Status:** Phase 2 COMPLETE (100%) | Next: Phase 3 (Wakanda)
+**Current Phase:** 3 (Jarvis & Wakanda Modes)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3 ~33% (Jarvis ✅, Wakanda spec drafted, code TBD)
+**Active Worktrees:** none
+**Blockers:** awaiting Nick's answers on Wakanda spec questions before Wakanda code lands
+**Next Approval Gate:** Wakanda spec sign-off
 
----
-
-## Phase 2 — Batman MVP (COMPLETE)
-
-**Progress:** 100% | Tests: 117 passing | Spec coverage: Sections 1–5 fully implemented
-
-### Deliverables Completed
-
-1. **Core Graph Architecture** (batman_graph.py)
-   - LangGraph-based orchestration with 6 task nodes
-   - Context propagation (state management)
-   - Tool service integration
-   - ABAC enforcement integration (NEW — Phase 2 finale)
-
-2. **Task Decomposition Engine** (decomposer.py)
-   - Multi-step planning
-   - Constraint handling
-   - Cost estimation
-
-3. **Execution Engine** (executor.py)
-   - Tool invocation
-   - Error handling
-   - Partial success tracking
-
-4. **Cost Tracking & Alerts** (cost_alert_service.py)
-   - Real-time cost accumulation
-   - Budget thresholds
-   - Alert generation
-
-5. **Review & Approval System** (reviewer.py, approval_gate.py)
-   - Task-by-task review
-   - Human-in-the-loop gates
-   - Rejection handling
-
-6. **ABAC Enforcement (NEW)** (abac_enforcer.py, Mission.abac_policy)
-   - Per-mission access control policies
-   - Consolidated enforcement point
-   - Tool invocation blocking before execution
-   - Audit trail support
-
-### Test Coverage
-
-- 117 core tests passing
-- 19 ABAC-specific tests (consolidation, malformed policies, edge cases)
-- Integration tests: batman_graph, abac_enforcer, reviewers, cost_alert_service
-
-### Spec Compliance
-
-- **Section 1–5:** Fully implemented
-  - §2.2 (Access Control / ABAC rules)
-  - §5.3 (Tool Invocation Safety)
-  - All sub-sections referenced in implementation
+### Mode → Business Mapping (CONFIRMED 2026-04-24)
+- **Batman** = Vampire Sex / London X — artist work, approval-gated
+- **Jarvis** = Fractal Web Solutions — dev agency, command-execute (single-shot)
+- **Wakanda** = ATS / All the Smoke — label, mixed/selective approval
 
 ---
 
-## Phase 3 — Wakanda (NOT STARTED)
-
-**Status:** Spec drafted (docs/SPEC_PHASE3_WAKANDA.md)
-
-### Planned Deliverables
-
-1. **Jarvis Supervisor Agent** (TODO)
-   - Long-running mission oversight
-   - Real-time failure detection
-   - Autonomic recovery
-
-2. **Multi-Mission Orchestration** (TODO)
-   - Concurrent mission management
-   - Resource contention handling
-   - Priority queuing
-
-3. **Enhanced ABAC** (TODO)
-   - Forbidden params enforcement
-   - Time-bound policies
-   - Role-based extensions
-
-4. **Persistence Layer** (TODO)
-   - Mission state durability
-   - Event sourcing
-   - Replay capability
-
-5. **API Gateway** (TODO)
-   - RESTful endpoints
-   - WebSocket support for live updates
-   - Rate limiting & quotas
+## Phase 0 — Foundation (Week 1) ✅ COMPLETE
+- Mission Object Pydantic model
+- Folder structure, pyproject.toml, package.json
+- Git init, DB schema, pytest fixtures
+- TypeScript/Next.js config (full scaffold landed in Phase 2)
 
 ---
 
-## Known Issues
-
-None at Phase 2 closure.
-
----
-
-## Next Actions (Phase 3 Planning)
-
-1. Review SPEC_PHASE3_WAKANDA.md for requirements
-2. Identify Jarvis Supervisor architecture (agent vs. service)
-3. Plan Phase 3 TDD test structure
-4. Scope multi-mission concurrency model
+## Phase 1 — Batman Mode MVP (Weeks 2–5) ✅ COMPLETE
+- DecomposerAgent + BatmanGraph + ExecutorAgent + BatmanSupervisor
+- Approval queue, full FastAPI route surface
+- React cockpit (cockpit.tsx + components)
+- 56/56 tests at Phase 1 close
 
 ---
 
-**Last Updated:** 2026-04-24 (Phase 2 closure)
-**Updated By:** Mission Architect Agent
-**Next Review:** Phase 3 kickoff
+## Phase 2 — Reviewer Agents + Guardrails (Weeks 6–7) ✅ COMPLETE
+
+### Objectives — ALL MET
+- [x] Reviewer Agents (code, memory, security)
+- [x] Cost alert service with hysteresis
+- [x] ReviewGate wired into BatmanGraph between approval and execution
+- [x] CostAlertService.check wired into `_execute_task_node` after each cost track
+- [x] Per-mission ABAC policy (`Mission.abac_policy`)
+- [x] AuditService persistence (SQLite tests, Postgres prod via `DATABASE_URL`)
+- [x] Cockpit ReviewPanel + AlertsPanel
+- [x] End-to-end cockpit smoke test through ASGI transport
+- [x] Next.js scaffold + typed api client (`npx tsc --noEmit` clean)
+- [x] **ABAC enforcement consolidation** — `ABACEnforcer` service is the single tool-invocation gate; integrated into `BatmanGraph._execute_task_node` before tool execute (Spec §2.2 + §5.3)
+
+### Phase 2 close
+- **Total tests at close: 147/147 passing**
+- ABAC consolidation landed in commit `c51a22d` (+20 tests for ABACEnforcer)
+
+---
+
+## Phase 3 — Jarvis & Wakanda Modes (Weeks 8–10) — ACTIVE ~33%
+
+### Phase 3 Task Log
+
+1. ✅ **JarvisSupervisor** (`backend/agents/jarvis_supervisor.py`) — commit `8deab03`
+   - Spec §9–11: single-shot decompose → review → execute → done
+   - Shares ToolService / CostService / MemoryService / CostAlertService / AuditService with Batman supervisor
+   - 6 unit tests + 2 integration tests
+   - Mode mapping: **Jarvis = Fractal Web Solutions** (dev agency)
+
+2. ✅ **POST /missions/{id}/run route** — commit `8deab03`
+   - Jarvis-only single-shot execution
+   - Rejects Batman missions with 400
+   - Mode-aware `create_mission` (Jarvis skips create-time decomposition)
+
+3. ✅ **Wakanda spec drafted** — `docs/SPEC_PHASE3_WAKANDA.md`
+   - Selective approval rule: gate iff public-facing / contractual / irreversible / cross-artist / manually flagged
+   - 6 open questions for Nick before code lands
+   - Mode mapping: **Wakanda = ATS / All the Smoke** (label)
+
+### Phase 3 Remaining
+- [ ] Nick's answers on the 6 Wakanda spec questions
+- [ ] WakandaSupervisor implementation (per-task gate classifier + mixed lifecycle)
+- [ ] `POST /missions/{id}/run-wakanda` route (or extension of existing routes)
+- [ ] Cockpit mode switcher — currently Batman-only UI
+- [ ] Wakanda-specific tool registry entries (depends on Q1 in spec)
+
+---
+
+## Phase 4 — Memory Scoping & ABAC (Weeks 11–12)
+- [ ] Full memory isolation per Mission (in progress — MemoryReviewer enforces; storage isolation TBD)
+- [ ] Least-privilege ABAC system (foundation in `ABACEnforcer`; needs role-based extensions)
+- [ ] Role-based tool access
+
+---
+
+## Phase 5 — Polish & Launch (Week 13)
+- [ ] Documentation + guides
+- [ ] Performance optimization
+- [ ] Deployment + monitoring
+
+---
+
+## Risks & What to Avoid
+- **Swarm behavior** — Agents spinning up without coordination
+- **Free-form agent chat** — Approval queue must be explicit
+- **Cross-mode memory leakage** — Batman / Jarvis / Wakanda isolated (enforced by MemoryReviewer)
+- **Mode-mapping drift** — Jarvis = FWS, Wakanda = ATS. This has drifted before; persisted to memory at `~/.claude/projects/-Users-Malachi-Missipn-Control-Builder-Agent/memory/mode_business_mapping.md`
+- **Missing audit trail** — every decision logged
+- **Scope creep** — stick to the 17-section spec
+
+---
+
+## Spec Reference
+- **Phase 1:** `docs/SPEC_PHASE1_BATMAN_MVP.md`
+- **Phase 3 Wakanda:** `docs/SPEC_PHASE3_WAKANDA.md` (draft, awaiting Nick review)
+- **Architecture:** `docs/ARCHITECTURE.md`
+
+---
+
+**Last Updated:** 2026-04-24 (Wakanda spec drafted; build plan reconciled after concurrent Phase 2 ABAC consolidation landed)
+**Maintained By:** Mission Architect Agent
