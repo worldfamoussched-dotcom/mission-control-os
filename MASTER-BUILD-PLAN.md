@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~95% (persistence layer in — only ABAC consolidation cleanup left)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~98% (smoke tested end-to-end through FastAPI; only ABAC consolidation cleanup left)
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
@@ -154,7 +154,7 @@
    - When None, SecurityReviewer falls back to its service default
    - 5 new unit tests (`tests/unit/test_mission_abac_policy.py`)
 
-**Total tests: 117/117 passing (113 unit + 4 integration)**
+**Total tests: 119/119 passing (113 unit + 6 integration)**
 **UI: scaffold complete, `npx tsc --noEmit` clean**
 
 5. ✅ **Next.js scaffold** — 2026-04-24
@@ -178,7 +178,11 @@
    - `backend/services/audit_service.py` — session-factory based, swappable between SQLite (tests) and Postgres (prod via `DATABASE_URL`)
    - Wired into `BatmanSupervisor.execute_approved_tasks` — best-effort writes (live workflow never breaks on persistence failure)
    - 11 new tests (8 unit on AuditService, 3 integration on Supervisor + AuditService end-to-end)
-   - **Total tests: 117/117 passing**
+
+8. ✅ **Phase 2 cockpit smoke test** — 2026-04-24
+   - `tests/integration/test_phase2_cockpit_smoke.py` — 2 tests
+   - Walks every endpoint the cockpit polls (`/missions/:id/results`, `/cost`, `/alerts`, `/memory`) through ASGI transport — no real Anthropic key, no Postgres
+   - Asserts `abac_policy` survives create→execute round-trip, alerts fire with low threshold, blocked tasks expose `review_results[]` for ReviewPanel
 
 ---
 
@@ -241,5 +245,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (AuditService persistence layer landed)
+**Last Updated:** 2026-04-24 (Phase 2 cockpit smoke green)
 **Maintained By:** Mission Architect Agent
