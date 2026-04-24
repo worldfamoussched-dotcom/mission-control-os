@@ -135,7 +135,7 @@ class TestDecomposeNode:
 
 
 # ---------------------------------------------------------------------------
-# Tests: _should_execute routing
+# Tests: post-review execution routing
 # ---------------------------------------------------------------------------
 
 class TestShouldExecute:
@@ -146,17 +146,17 @@ class TestShouldExecute:
             "approved_task_ids": ["t_aaa"],
             "mission_error": None,
         }
-        assert graph._should_execute(state) == "execute"
+        assert graph._should_execute_after_review(state) == "execute"
 
     def test_routes_to_error_when_no_approved_tasks(self):
         graph = _make_graph()
         state = {"approved_task_ids": [], "mission_error": None}
-        assert graph._should_execute(state) == "error"
+        assert graph._should_execute_after_review(state) == "error"
 
     def test_routes_to_error_when_error_present(self):
         graph = _make_graph()
         state = {"approved_task_ids": ["t_aaa"], "mission_error": "something broke"}
-        assert graph._should_execute(state) == "error"
+        assert graph._should_execute_after_review(state) == "error"
 
 
 # ---------------------------------------------------------------------------

@@ -16,6 +16,8 @@ from typing import Any, List, Optional, TypedDict
 from langgraph.graph import StateGraph, END
 
 from backend.agents.decomposer import DecomposerAgent
+from backend.agents.reviewers import ReviewGate
+from backend.services.cost_alert_service import CostAlertService
 from backend.services.cost_service import CostService
 from backend.services.memory_service import MemoryService
 from backend.services.tool_service import ToolService
@@ -29,13 +31,15 @@ class BatmanState(TypedDict):
     """Immutable-style state carried through the Batman Mode LangGraph."""
     mission_id: str
     objective: str
-    state: str                     # starting | decomposed | awaiting_approval | executing | completed | failed
+    state: str                     # starting | decomposed | awaiting_approval | reviewed | executing | completed | failed
     tasks: List[dict]              # full task dicts from DecomposerAgent
     approved_task_ids: List[str]   # task IDs approved by operator
     execution_results: List[dict]
     mission_error: Optional[str]   # renamed from 'error' — LangGraph reserves that key
     iteration_count: int
     cost_usd: float
+    review_results: List[dict]     # ReviewResult.model_dump() entries, 3 per approved task
+    cost_alerts: List[dict]        # CostAlert.model_dump() entries fired during execution
 
 
 # ---------------------------------------------------------------------------
@@ -59,11 +63,17 @@ class BatmanGraph:
         cost_service: CostService,
         memory_service: MemoryService,
         decomposer: Optional[DecomposerAgent] = None,
+        review_gate: Optional[ReviewGate] = None,
+        cost_alert_service: Optional[CostAlertService] = None,
+        abac_policy: Optional[dict] = None,
     ) -> None:
         self.tool_service = tool_service
         self.cost_service = cost_service
         self.memory_service = memory_service
         self.decomposer = decomposer or DecomposerAgent()
+        self.review_gate = review_gate or ReviewGate()
+        self.cost_alert_service = cost_alert_service or CostAlertService()
+        self.abac_policy = abac_policy  # if None, SecurityReviewer uses its default
         self._graph = self._build_graph()
 
     # ------------------------------------------------------------------
@@ -87,6 +97,8 @@ class BatmanGraph:
             "mission_error": None,
             "iteration_count": 0,
             "cost_usd": 0.0,
+            "review_results": [],
+            "cost_alerts": [],
         }
         # Run only the decompose node — graph pauses at await_approval
         result = await self._run_to_approval(initial)
@@ -110,6 +122,8 @@ class BatmanGraph:
             "mission_error": None,
             "iteration_count": 0,
             "cost_usd": 0.0,
+            "review_results": [],
+            "cost_alerts": [],
         }
         final = await self._graph.ainvoke(state)
         return final  # type: ignore[return-value]
@@ -134,6 +148,7 @@ class BatmanGraph:
 
         graph.add_node("decompose", self._decompose_node)
         graph.add_node("await_approval", self._await_approval_node)
+        graph.add_node("review_tasks", self._review_tasks_node)
         graph.add_node("execute_task", self._execute_task_node)
         graph.add_node("check_iteration", self._check_iteration_node)
         graph.add_node("complete", self._complete_node)
@@ -143,7 +158,12 @@ class BatmanGraph:
         graph.add_edge("decompose", "await_approval")
         graph.add_conditional_edges(
             "await_approval",
-            self._should_execute,
+            self._should_review,
+            {"review": "review_tasks", "error": "error"},
+        )
+        graph.add_conditional_edges(
+            "review_tasks",
+            self._should_execute_after_review,
             {"execute": "execute_task", "error": "error"},
         )
         graph.add_edge("execute_task", "check_iteration")
@@ -201,13 +221,71 @@ class BatmanGraph:
         new_state["state"] = "awaiting_approval"
         return new_state
 
-    def _should_execute(self, state: BatmanState) -> str:
-        """Route: proceed to execution if approved tasks exist, else error."""
+    def _should_review(self, state: BatmanState) -> str:
+        """Route: proceed to review if approved tasks exist, else error."""
+        if state.get("mission_error"):
+            return "error"
+        if state.get("approved_task_ids"):
+            return "review"
+        return "error"
+
+    def _should_execute_after_review(self, state: BatmanState) -> str:
+        """Route: proceed to execute only if review gate left no mission_error."""
         if state.get("mission_error"):
             return "error"
         if state.get("approved_task_ids"):
             return "execute"
         return "error"
+
+    async def _review_tasks_node(self, state: BatmanState) -> BatmanState:
+        """
+        Run ReviewGate on every approved task before execution (spec §6-8).
+
+        Any blocked task short-circuits the mission to 'failed' with a
+        descriptive mission_error. All review results are stored on state
+        regardless of outcome so the operator can audit them.
+        """
+        new_state = copy.copy(state)
+        new_state["review_results"] = list(state["review_results"])
+
+        approved_ids = state.get("approved_task_ids", [])
+        tasks_by_id = {t["id"]: t for t in state["tasks"]}
+
+        for task_id in approved_ids:
+            task = tasks_by_id.get(task_id)
+            if task is None:
+                new_state["state"] = "failed"
+                new_state["mission_error"] = (
+                    f"Review: approved task {task_id} not found in mission tasks"
+                )
+                return new_state
+
+            # Reviewers operate on the task's tool+parameters. Normalize
+            # suggested_tool -> tool so CodeReviewer/SecurityReviewer see it.
+            review_task = {
+                "tool": task.get("suggested_tool") or task.get("tool", ""),
+                "description": task.get("description", ""),
+                "parameters": task.get("parameters", {}) or {},
+            }
+
+            results = self.review_gate.run(
+                task=review_task,
+                mode="batman",
+                abac_policy=self.abac_policy,
+            )
+            new_state["review_results"].extend(r.model_dump() for r in results)
+
+            if not ReviewGate.all_passed(results):
+                failing = next(r for r in results if not r.passed)
+                new_state["state"] = "failed"
+                new_state["mission_error"] = (
+                    f"Review blocked task '{task['name']}' "
+                    f"({failing.reviewer}): {failing.reason}"
+                )
+                return new_state
+
+        new_state["state"] = "reviewed"
+        return new_state
 
     async def _execute_task_node(self, state: BatmanState) -> BatmanState:
         """
@@ -218,6 +296,7 @@ class BatmanGraph:
         new_state = copy.copy(state)
         new_state["approved_task_ids"] = list(state["approved_task_ids"])
         new_state["execution_results"] = list(state["execution_results"])
+        new_state["cost_alerts"] = list(state.get("cost_alerts", []))
 
         if not new_state["approved_task_ids"]:
             return new_state
@@ -274,6 +353,13 @@ class BatmanGraph:
                 "cost_usd": tool_cost,
             }
             new_state["cost_usd"] = state["cost_usd"] + tool_cost
+
+            # Cost alert check — hysteresis handled inside the service
+            alert = self.cost_alert_service.check(
+                state["mission_id"], new_state["cost_usd"]
+            )
+            if alert is not None:
+                new_state["cost_alerts"].append(alert.model_dump())
 
         new_state["execution_results"].append(result)
         new_state["iteration_count"] = state["iteration_count"] + 1

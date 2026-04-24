@@ -1,10 +1,10 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0 complete: 100% | Phase 1 complete: 100%
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~60% (reviewers + cost alerts wired into BatmanGraph)
 **Active Worktrees:** none
 **Blockers:** none
-**Next Approval Gate:** Reviewer Agent design (code, memory, security reviewers)
+**Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
 
 ---
 
@@ -120,9 +120,32 @@
 ## Phase 2 — Reviewer Agents + Guardrails (Weeks 6–7)
 
 ### Objectives
-- [ ] Implement Reviewer Agents (code, memory, security)
-- [ ] ABAC enforcement at all decision points
-- [ ] Cost tracking + alerts
+- [x] Implement Reviewer Agents (code, memory, security) — commit `166b6c6`
+- [x] Cost alert service with hysteresis — commit `8c90f3c`
+- [x] Wire ReviewGate into BatmanGraph between approval and execution
+- [x] Wire CostAlertService.check into `_execute_task_node` after each cost track
+- [ ] ABAC enforcement at all decision points (tool_service → review_gate consolidation)
+- [ ] Persist review_results + cost_alerts to Postgres (currently in-memory state only)
+- [ ] Surface review_results + cost_alerts in the cockpit UI
+
+### Phase 2 Task Log
+1. ✅ **Reviewer Agents** (`backend/agents/reviewers.py`) — commit `166b6c6`
+   - Spec §6–8: CodeReviewer (injection + allow-list), MemoryReviewer (cross-mode prefix ban), SecurityReviewer (ABAC)
+   - 21 unit tests (`tests/unit/test_reviewers.py`)
+
+2. ✅ **CostAlertService** (`backend/services/cost_alert_service.py`) — commit `8c90f3c`
+   - Spec §15–17: warning at 80% threshold, critical at 100%, 5% hysteresis band
+   - Tested in isolation
+
+3. ✅ **BatmanGraph Phase 2 wiring** — 2026-04-24
+   - New node `_review_tasks_node` inserted between `await_approval` and `execute_task`
+   - Routers renamed: `_should_execute` → `_should_execute_after_review` + new `_should_review`
+   - State extended: `review_results`, `cost_alerts`
+   - Constructor now accepts `review_gate`, `cost_alert_service`, `abac_policy`
+   - Cost alerts fired from inside `_execute_task_node` after every successful tool track
+   - 6 new integration tests (`tests/unit/test_batman_graph_phase2.py`)
+
+**Total tests: 101/101 passing (97 unit + 4 integration)**
 
 ---
 
@@ -185,5 +208,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24
+**Last Updated:** 2026-04-24 (Phase 2 graph wiring landed)
 **Maintained By:** Mission Architect Agent

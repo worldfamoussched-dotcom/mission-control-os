@@ -44,7 +44,14 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
-### Phase 2 — ACTIVE (Reviewer Agents + Guardrails)
+### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~60%
+- ReviewGate + CostAlertService wired into BatmanGraph
+- `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
+- Cost alerts fire from `_execute_task_node` with hysteresis
+- 6 new graph-level integration tests (`tests/unit/test_batman_graph_phase2.py`)
+- **Total: 101/101 passing**
+- Remaining: ABAC policy source-of-truth, Postgres persistence of reviews+alerts, cockpit UI surfacing
+
 ### Phase 3–5 — NOT STARTED
 
 ## Sub-Agent Roster
@@ -106,3 +113,5 @@ When spawning parallel agents, use these profiles:
 - [2026-04-24] LangGraph 0.0.46 reserves `"error"` key in TypedDict state — renamed to `mission_error`
 - [2026-04-24] LangGraph requires terminal nodes (`complete`, `error`) to connect to `END` explicitly
 - [2026-04-24] `CostService.PRICING` keys need prefix matching for full model names like `claude-opus-4-5`
+- [2026-04-24] SecurityReviewer default ABAC allow-list is narrower than CodeReviewer's — must pass a wider `abac_policy` covering all mock tools (`read_file`, `search_knowledge`, etc.) when instantiating BatmanGraph, or legit tasks get blocked
+- [2026-04-24] Renamed router `_should_execute` → `_should_execute_after_review` when inserting review node; legacy routing tests updated in place, semantics preserved
