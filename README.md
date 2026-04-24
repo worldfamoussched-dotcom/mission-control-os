@@ -140,10 +140,67 @@ Implementation follows the 17-section spec:
 - **Sections 12–14:** ABAC + memory scoping → Phase 4
 - **Sections 15–17:** Launch + monitoring → Phase 5
 
+## Phase 1: Batman Mode MVP
+
+**Starting Phase 1 — Approval-based execution workflow**
+
+### What's New
+
+- **FastAPI backend** with REST API for missions, tasks, approvals
+- **LangGraph agents** (stubs) for mission decomposition and execution
+- **React + Next.js UI** with components for approval queue and cost tracking
+- **SQLAlchemy ORM** models for database persistence
+- **Service layer** for mission, tool, cost, memory, and execution logic
+
+### Phase 1 Setup
+
+```bash
+# Backend
+python -m pip install -e '.[dev]'
+python -m pytest tests/unit tests/integration -v --cov=backend
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend
+npm install
+npm run dev  # Starts on localhost:3000
+
+# Database
+createdb mission_control_os
+psql mission_control_os < db/schema.sql
+alembic upgrade head  # When migrations added
+```
+
+### API Endpoints
+
+- `POST /api/missions` — Create mission
+- `GET /api/missions` — List missions
+- `GET /api/missions/{id}` — Get mission details
+- `POST /api/missions/{id}/tasks` — Create task
+- `POST /api/missions/{id}/tasks/{id}/approve` — Approve/reject task
+- `POST /api/missions/{id}/tasks/{id}/execute` — Execute approved task
+- `GET /health` — Health check
+
+### Success Criteria
+
+- [ ] Operator creates mission with objective + approvers
+- [ ] System decomposes into 3+ tasks
+- [ ] Each task presented to operator for approval
+- [ ] Tool executes ONLY after approval
+- [ ] Real-time execution log + cost tracking visible
+- [ ] All tests passing (80%+ coverage)
+- [ ] No console errors in browser
+
 ## Status
 
-**Current:** Phase 0 Step 1 complete (25%)
-- ✅ Mission Object schema
-- ✅ Unit tests (16 passing)
-- ✅ Database schema
-- ⏳ Phase 0 Step 2 — folder structure
+**Current:** Phase 1 skeleton complete
+- ✅ Folder structure (backend/api/services/agents/db, ui/components/pages/lib)
+- ✅ FastAPI main.py with CORS, docs, health endpoint
+- ✅ API schemas (Pydantic request/response models)
+- ✅ API routes (missions, tasks, approvals, execution)
+- ✅ Service layer (mission, tool, cost, memory, execution services)
+- ✅ Database models (SQLAlchemy ORM)
+- ✅ Agent stubs (BatmanLeadAgent, BatmanGraph, ToolWrapper)
+- ✅ React components (MissionGraph, ApprovalQueue, CostTracker)
+- ✅ Frontend hooks and types
+- ✅ .env.example with all vars
+- ⏳ Human review + tests execution
