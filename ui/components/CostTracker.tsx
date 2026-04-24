@@ -1,4 +1,4 @@
-"""React component for cost tracking display."""
+/** React component for cost tracking display. */
 
 import React from 'react';
 

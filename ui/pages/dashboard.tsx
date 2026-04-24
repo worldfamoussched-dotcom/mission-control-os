@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { MissionGraph } from '../components/MissionGraph';
 import { ApprovalQueue } from '../components/ApprovalQueue';
 import { CostTracker } from '../components/CostTracker';
-import { missions, tasks as tasksAPI } from '../lib/api';
+import { missions } from '../lib/api';
 import { Mission, MissionMode } from '../lib/types';
 
 export default function Dashboard() {
@@ -59,7 +59,7 @@ export default function Dashboard() {
 
     setLoading(true);
     try {
-      await tasksAPI.approve(selectedMission.id, taskId, true, reason);
+      await missions.approve(selectedMission.id, taskId, true, reason);
       // Refresh mission
       const updated = await missions.get(selectedMission.id);
       setSelectedMission(updated);
@@ -78,7 +78,7 @@ export default function Dashboard() {
 
     setLoading(true);
     try {
-      await tasksAPI.approve(selectedMission.id, taskId, false, reason);
+      await missions.approve(selectedMission.id, taskId, false, reason);
       // Refresh mission
       const updated = await missions.get(selectedMission.id);
       setSelectedMission(updated);

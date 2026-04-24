@@ -1,4 +1,4 @@
-"""React component for approval queue UI."""
+/** React component for approval queue UI. */
 
 import React, { useState } from 'react';
 

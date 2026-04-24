@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~75% (reviewers + cost alerts wired, ABAC policy per-mission)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~85% (reviewers + alerts + ABAC + UI scaffold + typed api client)
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
@@ -155,6 +155,16 @@
    - 5 new unit tests (`tests/unit/test_mission_abac_policy.py`)
 
 **Total tests: 106/106 passing (102 unit + 4 integration)**
+**UI: scaffold complete, `npx tsc --noEmit` clean**
+
+5. ✅ **Next.js scaffold** — 2026-04-24
+   - `ui/package.json` (Next 14.2.35, React 18.3.1, TS 5.4.5)
+   - `ui/tsconfig.json` (strict, bundler resolution)
+   - `ui/next.config.js`
+   - Fixed 3 `.tsx` files that had Python triple-quote docstrings (ApprovalQueue, CostTracker, MissionGraph)
+   - Updated `dashboard.tsx` to use new `missions.approve()` (dropped stale `tasks.*` import)
+   - Typed all `missions.*` API methods with explicit return generics
+   - `*.tsbuildinfo` added to gitignore
 
 ---
 
@@ -217,5 +227,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (per-mission ABAC policy landed)
+**Last Updated:** 2026-04-24 (Next.js scaffold + typed API client)
 **Maintained By:** Mission Architect Agent

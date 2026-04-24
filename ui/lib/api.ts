@@ -4,6 +4,8 @@
  * Wraps fetch with error handling and response types.
  */
 
+import type { Mission, TaskDefinition } from './types';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 // The /health endpoint is mounted at the app root (main.py), not under /api.
@@ -56,48 +58,53 @@ export const missions = {
     mode: string = 'batman',
     approvers: string[] = [],
     abacPolicy?: { allowed_tools: string[]; forbidden_params: string[] }
-  ) =>
-    apiRequest('/missions', {
+  ): Promise<Mission> =>
+    apiRequest<Mission>('/missions', {
       method: 'POST',
       body: JSON.stringify({ objective, mode, approvers, abac_policy: abacPolicy })
     }),
 
-  get: (missionId: string) =>
-    apiRequest(`/missions/${missionId}`),
+  get: (missionId: string): Promise<Mission> =>
+    apiRequest<Mission>(`/missions/${missionId}`),
 
-  list: () =>
-    apiRequest('/missions'),
+  list: (): Promise<Mission[]> =>
+    apiRequest<Mission[]>('/missions'),
 
-  getTasks: (missionId: string) =>
-    apiRequest(`/missions/${missionId}/tasks`),
+  getTasks: (missionId: string): Promise<TaskDefinition[]> =>
+    apiRequest<TaskDefinition[]>(`/missions/${missionId}/tasks`),
 
-  getApprovals: (missionId: string) =>
+  getApprovals: (missionId: string): Promise<unknown> =>
     apiRequest(`/missions/${missionId}/approvals`),
 
-  getExecutions: (missionId: string) =>
+  getExecutions: (missionId: string): Promise<unknown> =>
     apiRequest(`/missions/${missionId}/executions`),
 
-  approve: (missionId: string, taskId: string, approved: boolean, reason?: string) =>
+  approve: (
+    missionId: string,
+    taskId: string,
+    approved: boolean,
+    reason?: string
+  ): Promise<unknown> =>
     apiRequest(`/missions/${missionId}/tasks/${taskId}/approve`, {
       method: 'POST',
       body: JSON.stringify({ approved, reason, approver_id: 'operator' })
     }),
 
-  execute: (missionId: string) =>
+  execute: (missionId: string): Promise<unknown> =>
     apiRequest(`/missions/${missionId}/execute`, {
       method: 'POST'
     }),
 
-  results: (missionId: string) =>
+  results: (missionId: string): Promise<unknown> =>
     apiRequest(`/missions/${missionId}/results`),
 
-  cost: (missionId: string) =>
+  cost: (missionId: string): Promise<{ total_cost: number; breakdown?: Record<string, number> }> =>
     apiRequest(`/missions/${missionId}/cost`),
 
-  alerts: (missionId: string) =>
+  alerts: (missionId: string): Promise<unknown[]> =>
     apiRequest(`/missions/${missionId}/alerts`),
 
-  memory: (missionId: string) =>
+  memory: (missionId: string): Promise<unknown[]> =>
     apiRequest(`/missions/${missionId}/memory`)
 };
 

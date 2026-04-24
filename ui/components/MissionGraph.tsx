@@ -1,4 +1,4 @@
-"""React component for visualizing mission graph."""
+/** React component for visualizing mission graph. */
 
 import React from 'react';
 

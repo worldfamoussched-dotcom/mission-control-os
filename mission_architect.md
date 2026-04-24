@@ -44,13 +44,14 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
-### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~75%
+### Phase 2 — ACTIVE (Reviewer Agents + Guardrails) ~85%
 - ReviewGate + CostAlertService wired into BatmanGraph
 - `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
 - Cost alerts fire from `_execute_task_node` with hysteresis
 - **Per-mission ABAC policy** — `Mission.abac_policy` field, plumbed API → Supervisor → ReviewGate
 - **Total: 106/106 passing**
-- Remaining: Postgres persistence of reviews+alerts, cockpit UI surfacing, tool_service ↔ review_gate ABAC consolidation
+- **UI:** Next.js 14.2.35 scaffold complete, `npx tsc --noEmit` green, typed api client
+- Remaining: Postgres persistence of reviews+alerts, cockpit UI surfacing reviews+alerts, tool_service ↔ review_gate ABAC consolidation
 
 ### Phase 3–5 — NOT STARTED
 
@@ -118,3 +119,5 @@ When spawning parallel agents, use these profiles:
 - [2026-04-24] DECIDED: ABAC policy lives on the Mission object (Option A). Per-mission dict, None → SecurityReviewer default. Postgres + mode-registry options deferred
 - [2026-04-24] The "ui/lib/api.ts /api prefix tech debt" note was WRONG — the /api prefix in api.ts is correct (main.py mounts routes under /api). The actual UI bug was `ui/pages/cockpit.tsx` line 7 using base `http://localhost:8000` (missing /api). Fixed to `http://localhost:8000/api`.
 - [2026-04-24] `ui/lib/` is caught by Python-centric `.gitignore` (`lib/` pattern) — ui/lib/api.ts and ui/lib/types.ts are untracked. Needs a UI-specific exception in .gitignore before shipping UI work.
+- [2026-04-24] Three UI components (`ApprovalQueue.tsx`, `CostTracker.tsx`, `MissionGraph.tsx`) shipped with Python-style `"""..."""` docstrings on line 1 — TS parse errors. FIX: line-1 docstrings in `.tsx` files must be `/** ... */`. Phase 1 "TypeScript/Next.js config complete" claim in the build plan was false — no scaffold existed. Corrected in this session.
+- [2026-04-24] `missions.*` API methods returned `Promise<unknown>` because `apiRequest<T>` generic wasn't bound at call site. FIX: all methods now carry explicit return-type annotations (`Promise<Mission>` etc.) — makes typecheck enforce the backend contract at every call site instead of pushing it to callers.
