@@ -45,7 +45,7 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
 ### Phase 2 — Reviewer Agents + Guardrails — 98% (ABAC consolidation cleanup deferred)
-### Phase 3 — ACTIVE (Jarvis & Wakanda Modes) ~33%
+### Phase 3 — ACTIVE (Jarvis & Wakanda Modes) ~80%
 - ReviewGate + CostAlertService wired into BatmanGraph
 - `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
 - Cost alerts fire from `_execute_task_node` with hysteresis
@@ -55,16 +55,14 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 - **Persistence:** `AuditService` writes review verdicts + cost alerts. SQLite-in-memory for tests, Postgres in prod (DATABASE_URL). Best-effort writes — workflow continues if persistence fails.
 - **End-to-end smoke:** Phase 2 cockpit-bound endpoints all verified through ASGI transport (no live keys, no Postgres). Happy path + injection block both green.
 
-### Phase 3 (Jarvis Mode) — Just Landed
-- `JarvisSupervisor` — single-shot run_mission(decompose → review → execute), shares Batman's services backplane
-- `POST /missions/{id}/run` — Jarvis-only route, rejects Batman missions with 400
-- Mode-aware `create_mission`: Jarvis skips create-time decomposition
-- **Mapping:** Jarvis = Fractal Web Solutions (dev agency, command-execute)
+### Phase 3 — All three modes shipped
+- **Jarvis** (commit `8deab03`) — single-shot run_mission, no approval gate. Fractal Web Solutions.
+- **Wakanda** (this commit) — `GateClassifier` + `WakandaSupervisor` + 2 new routes. ATS / All the Smoke. Conservative defaults locked: gate-when-unsure, single operator, no cascade on reject. High-risk safety floor cannot be downgraded by `always_pass` overrides.
 
 ### Remaining
-- Wakanda mode (selective approval) — needs design pass before code
 - Mode switching in cockpit UI (currently Batman-only)
-- tool_service ↔ review_gate ABAC consolidation (Phase 2 cleanup, deferred)
+- Wakanda-specific tool registry entries (when ATS workflow surfaces concrete needs)
+- Multi-approver chain (Phase 4)
 
 ### Phase 3–5 — NOT STARTED
 
@@ -139,3 +137,5 @@ When spawning parallel agents, use these profiles:
 - [2026-04-24] CORRECTED mode-to-business mapping at Phase 3 entry. Prior identity section had **Jarvis = ATS / All the Smoke** (wrong) and **Wakanda = Fractal Web Solutions** (wrong). Confirmed by Nick: **Jarvis = Fractal Web Solutions** (dev agency, command-execute fits the dev shop workflow), **Wakanda = ATS / All the Smoke** (label, mixed approval fits release vs. metadata distinction). Identity section updated. Persisted to memory as `mode_business_mapping.md` so future sessions can't re-drift on this.
 - [2026-04-24] Found pre-existing tool registry inconsistency: `summarizer`, `text_generator`, `scheduler`, `search` are in CodeReviewer's allow-list AND in the SecurityReviewer ABAC defaults, but NOT in the ToolService tool registry. So a task using any of those passes review but gets blocked at the executor's `can_execute` check. Worked around in tests by using only `read_file` + `search_knowledge` (which are in both). PROPER FIX: tool_service ↔ review_gate consolidation (Phase 2 cleanup, deferred).
 - [2026-04-24] Found bug: `create_mission` was unconditionally calling Batman's decomposer for ALL modes, including Jarvis. For Jarvis missions this wasted a Claude call at create time, stored orphan unapproved tasks, and put the mission in PENDING_APPROVAL state inappropriately. FIX: branched create_mission on mode — Jarvis skips create-time decomposition; decompose happens inside `/run`.
+- [2026-04-24] Same fix extended to Wakanda — `create_mission` now skips create-time decomposition for BOTH Jarvis AND Wakanda. Decomposition happens inside `/run-wakanda` so the GateClassifier can process tasks fresh.
+- [2026-04-24] Reviewer normalization: in `WakandaSupervisor._review_and_execute`, `suggested_tool` is normalized to `tool` before passing to ReviewGate. Without this, reviewers reading `task.get("tool", "")` see empty string and the SecurityReviewer blocks every task. Same shape used in `BatmanGraph._review_tasks_node`. Should probably be lifted to the ReviewGate itself in a future cleanup so every supervisor doesn't have to remember.

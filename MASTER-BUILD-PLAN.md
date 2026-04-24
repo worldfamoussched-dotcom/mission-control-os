@@ -1,10 +1,10 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 3 (Jarvis & Wakanda Modes)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3 ~33% (Jarvis ✅, Wakanda spec drafted, code TBD)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3 ~80% (Jarvis ✅, Wakanda code ✅ with conservative defaults)
 **Active Worktrees:** none
-**Blockers:** awaiting Nick's answers on Wakanda spec questions before Wakanda code lands
-**Next Approval Gate:** Wakanda spec sign-off
+**Blockers:** none — Wakanda shipped with locked-in defaults; revisit spec questions when ATS workflow surfaces concrete needs
+**Next Approval Gate:** Cockpit mode switcher (UI work)
 
 ### Mode → Business Mapping (CONFIRMED 2026-04-24)
 - **Batman** = Vampire Sex / London X — artist work, approval-gated
@@ -64,17 +64,31 @@
    - Rejects Batman missions with 400
    - Mode-aware `create_mission` (Jarvis skips create-time decomposition)
 
-3. ✅ **Wakanda spec drafted** — `docs/SPEC_PHASE3_WAKANDA.md`
+3. ✅ **Wakanda spec + conservative defaults** — `docs/SPEC_PHASE3_WAKANDA.md`
    - Selective approval rule: gate iff public-facing / contractual / irreversible / cross-artist / manually flagged
-   - 6 open questions for Nick before code lands
+   - 6 spec questions answered with conservative defaults (gate-when-unsure, single operator, no cascade on reject)
    - Mode mapping: **Wakanda = ATS / All the Smoke** (label)
 
+4. ✅ **WakandaSupervisor + GateClassifier** (`backend/agents/wakanda_supervisor.py`)
+   - GateClassifier: 7-rule priority lattice (safety floor → ABAC overrides → manual flag → registry flag → unknown-default-gate → pass)
+   - run_mission(): classify each task, run pass-through immediately, queue gated for operator
+   - approve_gated_task(): on approve runs review→execute, on reject marks rejected (no cascade)
+   - Shares ToolService / CostService / MemoryService / CostAlertService / AuditService with Batman + Jarvis supervisors
+   - 16 unit tests (`tests/unit/test_wakanda_supervisor.py`) — classifier rules + lifecycle
+
+5. ✅ **Wakanda routes** (`backend/api/routes.py`)
+   - `POST /missions/{id}/run-wakanda` — kicks off classify + auto-run pass-through
+   - `POST /missions/{id}/wakanda/tasks/{tid}/approve` — operator decision on gated tasks
+   - Both reject non-Wakanda missions with 400
+   - `create_mission` now skips create-time decomposition for both Jarvis AND Wakanda
+   - 3 integration tests (`tests/integration/test_wakanda_route.py`)
+
+**Total tests at Phase 3 close: 166/166 passing**
+
 ### Phase 3 Remaining
-- [ ] Nick's answers on the 6 Wakanda spec questions
-- [ ] WakandaSupervisor implementation (per-task gate classifier + mixed lifecycle)
-- [ ] `POST /missions/{id}/run-wakanda` route (or extension of existing routes)
-- [ ] Cockpit mode switcher — currently Batman-only UI
-- [ ] Wakanda-specific tool registry entries (depends on Q1 in spec)
+- [ ] Cockpit mode switcher — currently Batman-only UI; needs to handle Jarvis single-shot + Wakanda mixed-queue
+- [ ] Wakanda-specific tool registry entries (deferred — adds when ATS workflow surfaces concrete needs)
+- [ ] Multi-approver chain (deferred to Phase 4)
 
 ---
 
@@ -109,5 +123,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (Wakanda spec drafted; build plan reconciled after concurrent Phase 2 ABAC consolidation landed)
+**Last Updated:** 2026-04-24 (Wakanda Mode shipped with conservative defaults — 166/166 tests)
 **Maintained By:** Mission Architect Agent

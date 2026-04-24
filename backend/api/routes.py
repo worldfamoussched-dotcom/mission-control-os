@@ -24,6 +24,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from backend.agents.jarvis_supervisor import JarvisSupervisor
 from backend.agents.supervisor import BatmanSupervisor
+from backend.agents.wakanda_supervisor import WakandaSupervisor
 from backend.api.schemas import (
     ApprovalRequest,
     ApprovalResponse,
@@ -46,6 +47,13 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 _supervisor = BatmanSupervisor()
 _jarvis_supervisor = JarvisSupervisor(
+    tool_service=_supervisor.tool_service,
+    cost_service=_supervisor.cost_service,
+    memory_service=_supervisor.memory_service,
+    cost_alert_service=_supervisor.cost_alert_service,
+    audit_service=_supervisor.audit_service,
+)
+_wakanda_supervisor = WakandaSupervisor(
     tool_service=_supervisor.tool_service,
     cost_service=_supervisor.cost_service,
     memory_service=_supervisor.memory_service,
@@ -146,7 +154,10 @@ async def create_mission(req: CreateMissionRequest) -> MissionResponse:
     _missions[mission_id] = mission
 
     # Jarvis missions skip create-time decomposition — see /run.
-    if req.mode == MissionMode.JARVIS:
+    # Jarvis and Wakanda both skip create-time decomposition. Decompose
+    # happens inside POST /run (Jarvis) or /run-wakanda (Wakanda) so the
+    # right supervisor + classifier processes the tasks.
+    if req.mode in (MissionMode.JARVIS, MissionMode.WAKANDA):
         mission["state"] = MissionState.PENDING_APPROVAL  # ready-to-run sentinel
         _tasks[mission_id] = []
         return _mission_to_response(mission)
@@ -321,6 +332,98 @@ async def execute_mission(mission_id: str) -> dict[str, Any]:
     existing_alerts = _alerts.get(mission_id, [])
     _alerts[mission_id] = existing_alerts + summary.get("cost_alerts", [])
     return summary
+
+
+@router.post(
+    "/missions/{mission_id}/run-wakanda",
+    summary="Selective-approval kickoff for Wakanda Mode (ATS / All the Smoke)",
+)
+async def run_wakanda_mission(mission_id: str) -> dict[str, Any]:
+    """Kick off a Wakanda Mode mission.
+
+    Spec reference: Phase 3 §9–11 + docs/SPEC_PHASE3_WAKANDA.md.
+    Mode mapping: Wakanda = ATS / All the Smoke (label).
+
+    Decomposes, classifies each task as gated vs pass-through, runs
+    pass-through tasks immediately, and returns the gated queue for the
+    operator to approve via POST /missions/{id}/wakanda/tasks/{tid}/approve.
+
+    Rejects non-Wakanda missions with 400.
+    """
+    mission = _get_mission_or_404(mission_id)
+
+    if mission["mode"] != MissionMode.WAKANDA:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"/run-wakanda is for Wakanda Mode missions only. This mission "
+                f"is in '{mission['mode']}' mode."
+            ),
+        )
+
+    mission["state"] = MissionState.EXECUTING
+
+    summary = await _wakanda_supervisor.run_mission(
+        mission_id=mission_id,
+        objective=mission["objective"],
+        abac_policy=mission.get("abac_policy"),
+    )
+
+    # Cost + state bookkeeping
+    mission["total_cost_usd"] = (
+        mission.get("total_cost_usd", 0.0) + summary["total_cost_usd"]
+    )
+    if not summary["gated_task_ids"]:
+        # No gated work — mission can finalize on this call alone
+        mission["state"] = MissionState.COMPLETED
+        mission["completed_at"] = datetime.now(timezone.utc)
+
+    # Cockpit-bound stores — pass-through results visible immediately
+    _results[mission_id] = list(summary["pass_through_results"])
+
+    return summary
+
+
+@router.post(
+    "/missions/{mission_id}/wakanda/tasks/{task_id}/approve",
+    summary="Operator decision on a gated Wakanda task",
+)
+async def approve_wakanda_task(
+    mission_id: str, task_id: str, req: ApprovalRequest
+) -> dict[str, Any]:
+    """Approve or reject a single gated Wakanda task.
+
+    Spec reference: Phase 3 §9–11 + docs/SPEC_PHASE3_WAKANDA.md.
+
+    On approve: task runs through review→execute (same path as
+    pass-through). On reject: task marked rejected, other tasks unaffected.
+    """
+    mission = _get_mission_or_404(mission_id)
+
+    if mission["mode"] != MissionMode.WAKANDA:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This endpoint is for Wakanda Mode missions only.",
+        )
+
+    result = await _wakanda_supervisor.approve_gated_task(
+        mission_id=mission_id,
+        task_id=task_id,
+        approved=req.approved,
+        approver_id=req.approver_id or "operator",
+        reason=req.reason,
+    )
+
+    # Append to mission results store so /results sees the post-approval task
+    existing = _results.get(mission_id, [])
+    _results[mission_id] = existing + [result]
+
+    # If no gated tasks remain, mission can finalize
+    if not _wakanda_supervisor.get_pending_gated_task_ids(mission_id):
+        mission["state"] = MissionState.COMPLETED
+        mission["completed_at"] = datetime.now(timezone.utc)
+
+    return result
 
 
 @router.post(

@@ -125,6 +125,21 @@ Six questions. Skim them and answer in any form (numbers, prose, "use my judgmen
 
 ---
 
+## Conservative defaults locked in (2026-04-24)
+
+Nick chose to ship Wakanda with conservative defaults rather than block on Q&A. **All six are revisitable** — these are defaults, not contracts.
+
+| Q | Default | Tighten when |
+|---|---|---|
+| 1. ATS-specific tools | None added — use existing registry. Unknown tool → gate. | Real ATS workflow surfaces concrete tool needs |
+| 2. Operator identity | Single string `"operator"`, same as Batman | Multi-approver work in Phase 4 |
+| 3. Default-when-unsure | **GATE** (unknown category, unknown risk, missing fields → require approval) | Stays as-is; this is the right safety posture for label work |
+| 4. Reject behavior | Other pass-through tasks keep running; rejected task marked rejected; mission = `partial` | Stays as-is unless ATS workflow proves otherwise |
+| 5. Cross-artist tasks | Treated as gated. Single operator approval is sufficient. | Multi-approver chain in Phase 4 |
+| 6. Coverage gaps | Real ATS tool registry, multi-approver chain, cancellation/rollback — all deferred | Each becomes its own follow-up |
+
+---
+
 ## Out of scope for this spec
 
 - **Wakanda cockpit UI** — separate task. Probably a unified cockpit that shows both gated queue + executing log, with a mode header.
