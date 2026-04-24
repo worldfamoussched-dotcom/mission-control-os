@@ -1,10 +1,10 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 0 (Foundation Setup)
-**Progress:** 0%
+**Progress:** 25% (Pydantic Mission Object complete, tests passing)
 **Active Worktrees:** none
 **Blockers:** none
-**Next Approval Gate:** Pydantic Mission Object model
+**Next Approval Gate:** Folder structure + pyproject.toml (Phase 0 Step 2)
 
 ---
 
@@ -17,10 +17,12 @@
 - [ ] Set up dev environment + testing framework
 
 ### Tasks
-1. **Define Mission Object Pydantic model**
+1. **Define Mission Object Pydantic model** ✅ COMPLETE
    - Spec section: 17-section spec (section 1-2)
    - Fields: id, mode, parent_id, state, approvers, memory_scope, cost_tracked, audit_log
-   - Approval: Required before implementation
+   - Implementation: backend/models/mission.py with all fields + validators + methods
+   - Tests: 16 unit tests in tests/unit/test_mission.py (all passing)
+   - Database: db/schema.sql with missions, approval_records, audit_log tables
 
 2. **Create folder structure**
    - `backend/` (FastAPI, LangGraph, agents)
