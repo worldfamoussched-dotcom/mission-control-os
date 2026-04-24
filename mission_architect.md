@@ -116,3 +116,5 @@ When spawning parallel agents, use these profiles:
 - [2026-04-24] SecurityReviewer default ABAC allow-list is narrower than CodeReviewer's — must pass a wider `abac_policy` covering all mock tools (`read_file`, `search_knowledge`, etc.) when instantiating BatmanGraph, or legit tasks get blocked
 - [2026-04-24] Renamed router `_should_execute` → `_should_execute_after_review` when inserting review node; legacy routing tests updated in place, semantics preserved
 - [2026-04-24] DECIDED: ABAC policy lives on the Mission object (Option A). Per-mission dict, None → SecurityReviewer default. Postgres + mode-registry options deferred
+- [2026-04-24] The "ui/lib/api.ts /api prefix tech debt" note was WRONG — the /api prefix in api.ts is correct (main.py mounts routes under /api). The actual UI bug was `ui/pages/cockpit.tsx` line 7 using base `http://localhost:8000` (missing /api). Fixed to `http://localhost:8000/api`.
+- [2026-04-24] `ui/lib/` is caught by Python-centric `.gitignore` (`lib/` pattern) — ui/lib/api.ts and ui/lib/types.ts are untracked. Needs a UI-specific exception in .gitignore before shipping UI work.

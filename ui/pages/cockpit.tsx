@@ -4,7 +4,7 @@ import { ExecutionLog } from '../components/ExecutionLog';
 import { CostTrackerWidget } from '../components/CostTrackerWidget';
 import type { Task } from '../components/TaskApprovalCard';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
 
 type MissionState =
   | 'pending'
