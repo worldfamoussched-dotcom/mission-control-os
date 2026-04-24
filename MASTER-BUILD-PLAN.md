@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 2 (Reviewer Agents + Guardrails)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~60% (reviewers + cost alerts wired into BatmanGraph)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2 ~75% (reviewers + cost alerts wired, ABAC policy per-mission)
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** ABAC policy source-of-truth — decide where mission-specific policy lives (Mission object? mode registry? Postgres)
@@ -124,6 +124,8 @@
 - [x] Cost alert service with hysteresis — commit `8c90f3c`
 - [x] Wire ReviewGate into BatmanGraph between approval and execution
 - [x] Wire CostAlertService.check into `_execute_task_node` after each cost track
+- [x] ABAC policy source-of-truth decided (Option A: Mission-object-native)
+- [x] `Mission.abac_policy` field + CreateMissionRequest plumb-through + Supervisor honors it
 - [ ] ABAC enforcement at all decision points (tool_service → review_gate consolidation)
 - [ ] Persist review_results + cost_alerts to Postgres (currently in-memory state only)
 - [ ] Surface review_results + cost_alerts in the cockpit UI
@@ -145,7 +147,14 @@
    - Cost alerts fired from inside `_execute_task_node` after every successful tool track
    - 6 new integration tests (`tests/unit/test_batman_graph_phase2.py`)
 
-**Total tests: 101/101 passing (97 unit + 4 integration)**
+4. ✅ **Mission-scoped ABAC policy** — 2026-04-24
+   - Spec §12–14: ABAC policy scoped per Mission
+   - `Mission.abac_policy: Optional[Dict]` added (shape: `{allowed_tools, forbidden_params}`)
+   - `CreateMissionRequest.abac_policy` → stored on mission dict → passed to `Supervisor.execute_approved_tasks(abac_policy=...)`
+   - When None, SecurityReviewer falls back to its service default
+   - 5 new unit tests (`tests/unit/test_mission_abac_policy.py`)
+
+**Total tests: 106/106 passing (102 unit + 4 integration)**
 
 ---
 
@@ -208,5 +217,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (Phase 2 graph wiring landed)
+**Last Updated:** 2026-04-24 (per-mission ABAC policy landed)
 **Maintained By:** Mission Architect Agent

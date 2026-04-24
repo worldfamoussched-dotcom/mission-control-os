@@ -113,6 +113,14 @@ class Mission(BaseModel):
         default_factory=list,
         description="List of tool names this mission can invoke (ABAC enforcement)"
     )
+    abac_policy: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Mission-scoped ABAC policy for the Phase 2 ReviewGate. "
+            "Shape: {'allowed_tools': [str], 'forbidden_params': [str]}. "
+            "When None, SecurityReviewer falls back to its service default."
+        ),
+    )
     max_iterations: int = Field(
         default=10,
         description="Prevent infinite loops — max decision iterations"

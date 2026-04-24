@@ -128,6 +128,7 @@ async def create_mission(req: CreateMissionRequest) -> MissionResponse:
         "created_at": now,
         "completed_at": None,
         "tags": req.tags or [],
+        "abac_policy": req.abac_policy,
     }
     _missions[mission_id] = mission
 
@@ -269,6 +270,8 @@ async def execute_mission(mission_id: str) -> dict[str, Any]:
         objective=mission["objective"],
         all_tasks=all_tasks,
         approved_task_ids=approved_task_ids,
+        mode=str(mission["mode"]),
+        abac_policy=mission.get("abac_policy"),
     )
 
     # Update task statuses from results

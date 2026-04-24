@@ -55,6 +55,13 @@ class CreateMissionRequest(BaseModel):
     approvers: List[str] = Field(default_factory=list)
     cost_limit_usd: Optional[float] = Field(None, gt=0)
     tags: Optional[List[str]] = Field(default_factory=list)
+    abac_policy: Optional[dict] = Field(
+        None,
+        description=(
+            "Mission-scoped ABAC policy for Phase 2 ReviewGate. "
+            "Shape: {'allowed_tools': [str], 'forbidden_params': [str]}."
+        ),
+    )
 
     class Config:
         json_schema_extra = {
