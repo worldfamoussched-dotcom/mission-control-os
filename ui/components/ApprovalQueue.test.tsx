@@ -10,14 +10,18 @@ const pending = (id: string, name = `Task ${id}`) => ({
   status: "pending_approval",
 });
 
+// Helpers that match the typed Promise<void> contract — prevents
+// "update not wrapped in act(...)" warnings caused by sync vi.fn() returns.
+const asyncFn = () => vi.fn().mockResolvedValue(undefined);
+
 describe("ApprovalQueue", () => {
   it("shows the empty-state message when no pending tasks", () => {
     render(
       <ApprovalQueue
         missionId="m-1"
         tasks={[]}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
+        onApprove={asyncFn()}
+        onReject={asyncFn()}
       />,
     );
     expect(screen.getByText(/all tasks approved/i)).toBeInTheDocument();
@@ -31,8 +35,8 @@ describe("ApprovalQueue", () => {
           pending("t-1"),
           { id: "t-2", name: "Done", description: "d", status: "completed" },
         ]}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
+        onApprove={asyncFn()}
+        onReject={asyncFn()}
       />,
     );
     expect(screen.getByText(/approval queue \(1 tasks\)/i)).toBeInTheDocument();
@@ -44,8 +48,8 @@ describe("ApprovalQueue", () => {
       <ApprovalQueue
         missionId="m-1"
         tasks={[pending("t-1", "First"), pending("t-2", "Second")]}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
+        onApprove={asyncFn()}
+        onReject={asyncFn()}
       />,
     );
     expect(screen.getByText("First")).toBeInTheDocument();
@@ -53,14 +57,14 @@ describe("ApprovalQueue", () => {
   });
 
   it("calls onApprove with the task id when Approve is clicked", async () => {
-    const onApprove = vi.fn();
+    const onApprove = asyncFn();
     const user = userEvent.setup();
     render(
       <ApprovalQueue
         missionId="m-1"
         tasks={[pending("t-1")]}
         onApprove={onApprove}
-        onReject={vi.fn()}
+        onReject={asyncFn()}
       />,
     );
     await user.click(screen.getByRole("button", { name: /^approve$/i }));
@@ -68,13 +72,13 @@ describe("ApprovalQueue", () => {
   });
 
   it("requires a rejection reason before confirming", async () => {
-    const onReject = vi.fn();
+    const onReject = asyncFn();
     const user = userEvent.setup();
     render(
       <ApprovalQueue
         missionId="m-1"
         tasks={[pending("t-1")]}
-        onApprove={vi.fn()}
+        onApprove={asyncFn()}
         onReject={onReject}
       />,
     );
@@ -96,8 +100,8 @@ describe("ApprovalQueue", () => {
       <ApprovalQueue
         missionId="m-1"
         tasks={[pending("t-1")]}
-        onApprove={vi.fn()}
-        onReject={vi.fn()}
+        onApprove={asyncFn()}
+        onReject={asyncFn()}
         isLoading
       />,
     );
