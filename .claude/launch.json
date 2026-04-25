@@ -1,0 +1,32 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend (FastAPI)",
+      "runtimeExecutable": "venv/bin/python",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "backend.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "ui (Next.js cockpit)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "ui",
+        "run",
+        "dev"
+      ],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

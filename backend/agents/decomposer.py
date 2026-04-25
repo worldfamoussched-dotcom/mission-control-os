@@ -64,11 +64,32 @@ class DecomposerAgent:
         max_tokens: int = 1024,
         api_key: str | None = None,
     ) -> None:
-        self._client = anthropic.Anthropic(
-            api_key=api_key or os.environ["ANTHROPIC_API_KEY"]
-        )
+        # Eager when a key is available (preserves existing test patterns that
+        # patch agent._client directly), lazy when not (lets backend boot in
+        # demo/no-key environments — health/docs/missions endpoints work
+        # without spending real $; only .run() will fail if invoked).
+        self._explicit_api_key = api_key
         self._model = model
         self._max_tokens = max_tokens
+
+        resolved = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        self._client: anthropic.Anthropic | None = (
+            anthropic.Anthropic(api_key=resolved) if resolved else None
+        )
+
+    def _get_client(self) -> anthropic.Anthropic:
+        if self._client is not None:
+            return self._client
+        # Re-check env in case it became available after init.
+        key = self._explicit_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY is not set. DecomposerAgent.run() requires a "
+                "real key to call Claude; set it in the env or pass api_key= "
+                "explicitly."
+            )
+        self._client = anthropic.Anthropic(api_key=key)
+        return self._client
 
     # ------------------------------------------------------------------
     # Public
@@ -91,7 +112,7 @@ class DecomposerAgent:
 
     def _call_claude(self, objective: str) -> str:
         """Synchronous Anthropic SDK call — wraps in thread for async compat."""
-        message = self._client.messages.create(
+        message = self._get_client().messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
             system=DECOMPOSE_SYSTEM_PROMPT,
