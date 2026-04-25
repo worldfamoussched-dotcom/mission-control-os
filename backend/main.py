@@ -27,11 +27,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware.
+# - allow_origins: explicit production-style origins from env (or default :3000).
+# - allow_origin_regex: any localhost / 127.0.0.1 port for local dev (Next.js
+#   may fall back to a random port via autoPort when 3000 is taken).
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
