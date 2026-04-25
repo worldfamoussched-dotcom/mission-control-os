@@ -1,7 +1,7 @@
 # Mission Control OS — Master Build Plan
 
-**Current Phase:** 3 (Jarvis & Wakanda Modes)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3 ~95% (Jarvis ✅ Wakanda ✅ Cockpit mode switcher ✅)
+**Current Phase:** 3 closing → Phase 4 entry pending Nick approval
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3: 100% — Jarvis ✅ Wakanda ✅ Cockpit mode switcher ✅ Cockpit page tests ✅. Remaining bullets (ATS tool registry, multi-approver chain, Resonance OS scoping) are Phase-4-deferred or need Nick input.
 **Active Worktrees:** none
 **Blockers:** none
 **Next Approval Gate:** Phase 4 entry — multi-approver chains, real memory isolation, Resonance OS integration scoping
@@ -84,7 +84,7 @@
    - `create_mission` now skips create-time decomposition for both Jarvis AND Wakanda
    - 3 integration tests (`tests/integration/test_wakanda_route.py`)
 
-**Total tests at Phase 3 close: 166/166 passing**
+**Total tests at Phase 3 close: 166 backend + 47 UI (was 33) = 213 total passing**
 
 6. ✅ **Cockpit brand-aware mode switcher** (`ui/pages/cockpit.tsx`)
    - Brand picker (VS/LX, Fractal, ATS) replaces mode dropdown — operator thinks in brands
@@ -96,12 +96,16 @@
    - `npx tsc --noEmit` clean
    - Bug fix: previous `handleApprove` called `/missions/{id}/approve` (not a real endpoint) and `/execute` on every approve
 
-### Phase 3 Remaining
-- [ ] Tailwind install in `ui/` (cockpit uses Tailwind classes but Tailwind itself isn't in `ui/package.json` yet — page renders unstyled until fixed)
-- [ ] Cockpit unit tests (Vitest scaffold; UI has zero tests)
-- [ ] Wakanda-specific tool registry entries (deferred — adds when ATS workflow surfaces concrete needs)
-- [ ] Multi-approver chain (deferred to Phase 4)
-- [ ] **Resonance OS integration scoping** (deferred — see memory at `resonance_os_integration_pending.md`)
+### Phase 3 Closure (2026-04-25 night-build)
+- [x] Tailwind install in `ui/` — landed in `355350e` (Tailwind v3 + autoprefixer + postcss)
+- [x] Component-level Vitest tests — `355350e` (33 tests across 6 components)
+- [x] **Cockpit page tests** — `6fd5be1` on `night-build/2026-04-25` (14 new tests; brand picker, Batman/Jarvis/Wakanda launch flows, approval flows including the `/execute`-only-when-queue-empty regression guard, polling)
+- [x] JSDOM `scrollIntoView` stub in `vitest.setup.ts` (unblocked any future test rendering ExecutionLog with non-empty tasks)
+
+### Deferred / Needs Nick Input
+- [ ] Wakanda-specific tool registry entries — needs concrete ATS workflow examples
+- [ ] Multi-approver chain — Phase 4
+- [ ] **Resonance OS integration scoping** — see memory at `resonance_os_integration_pending.md`
 
 ---
 
@@ -136,5 +140,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (cockpit brand-aware mode switcher landed — Phase 3 ~95%)
+**Last Updated:** 2026-04-25 night-build (cockpit page tests + JSDOM fix landed — Phase 3 100%, awaiting Nick approval to enter Phase 4)
 **Maintained By:** Mission Architect Agent
