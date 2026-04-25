@@ -5,6 +5,13 @@ import { afterAll, beforeAll, vi } from "vitest";
 // See: https://react.dev/reference/react/act
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// JSDOM doesn't implement scrollIntoView — stub it so components using it don't crash in tests.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function () {
+    /* noop for JSDOM */
+  };
+}
+
 // Filter known-noisy "not wrapped in act(...)" warnings.
 // These are emitted when a component handler triggers multiple state updates
 // after an awaited Promise resolves — a known React 18 + RTL false positive
