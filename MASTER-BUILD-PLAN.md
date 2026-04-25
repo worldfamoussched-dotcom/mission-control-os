@@ -1,10 +1,11 @@
 # Mission Control OS — Master Build Plan
 
 **Current Phase:** 3 (Jarvis & Wakanda Modes)
-**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3 ~80% (Jarvis ✅, Wakanda code ✅ with conservative defaults)
+**Progress:** Phase 0: 100% | Phase 1: 100% | Phase 2: 100% | Phase 3 ~95% (Jarvis ✅ Wakanda ✅ Cockpit mode switcher ✅)
 **Active Worktrees:** none
-**Blockers:** none — Wakanda shipped with locked-in defaults; revisit spec questions when ATS workflow surfaces concrete needs
-**Next Approval Gate:** Cockpit mode switcher (UI work)
+**Blockers:** none
+**Next Approval Gate:** Phase 4 entry — multi-approver chains, real memory isolation, Resonance OS integration scoping
+**Session State:** see `current.md` (16D shell — read on session open)
 
 ### Mode → Business Mapping (CONFIRMED 2026-04-24)
 - **Batman** = Vampire Sex / London X — artist work, approval-gated
@@ -85,10 +86,22 @@
 
 **Total tests at Phase 3 close: 166/166 passing**
 
+6. ✅ **Cockpit brand-aware mode switcher** (`ui/pages/cockpit.tsx`)
+   - Brand picker (VS/LX, Fractal, ATS) replaces mode dropdown — operator thinks in brands
+   - Per-brand accent color (violet / emerald / amber) for instant visual identity
+   - `handleLaunch` branches per brand: Batman creates+waits, Jarvis fires `/run` immediately, Wakanda fires `/run-wakanda` then renders gated queue
+   - `handleApprove`/`handleReject` branch per mode: Batman uses `/tasks/.../approve` + `/execute` (only when queue empties), Wakanda uses `/wakanda/tasks/.../approve`
+   - Approval queue shown only for Batman + Wakanda (when gated tasks exist)
+   - Operator-friendly status: "Waiting on you — N to review" / "Running…" / "Done"
+   - `npx tsc --noEmit` clean
+   - Bug fix: previous `handleApprove` called `/missions/{id}/approve` (not a real endpoint) and `/execute` on every approve
+
 ### Phase 3 Remaining
-- [ ] Cockpit mode switcher — currently Batman-only UI; needs to handle Jarvis single-shot + Wakanda mixed-queue
+- [ ] Tailwind install in `ui/` (cockpit uses Tailwind classes but Tailwind itself isn't in `ui/package.json` yet — page renders unstyled until fixed)
+- [ ] Cockpit unit tests (Vitest scaffold; UI has zero tests)
 - [ ] Wakanda-specific tool registry entries (deferred — adds when ATS workflow surfaces concrete needs)
 - [ ] Multi-approver chain (deferred to Phase 4)
+- [ ] **Resonance OS integration scoping** (deferred — see memory at `resonance_os_integration_pending.md`)
 
 ---
 
@@ -123,5 +136,5 @@
 
 ---
 
-**Last Updated:** 2026-04-24 (Wakanda Mode shipped with conservative defaults — 166/166 tests)
+**Last Updated:** 2026-04-24 (cockpit brand-aware mode switcher landed — Phase 3 ~95%)
 **Maintained By:** Mission Architect Agent

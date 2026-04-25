@@ -45,7 +45,7 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 **Known tech debt:** `ui/lib/api.ts` uses `/api` prefix — spec routes are root-level. Fix before Phase 2 UI.
 
 ### Phase 2 — Reviewer Agents + Guardrails — 98% (ABAC consolidation cleanup deferred)
-### Phase 3 — ACTIVE (Jarvis & Wakanda Modes) ~80%
+### Phase 3 — ACTIVE (Jarvis & Wakanda Modes) ~95%
 - ReviewGate + CostAlertService wired into BatmanGraph
 - `review_tasks` node runs before `execute_task`; blocks on any failing reviewer
 - Cost alerts fire from `_execute_task_node` with hysteresis
@@ -59,10 +59,20 @@ I maintain and enforce the 17-section spec from the original Grok research sessi
 - **Jarvis** (commit `8deab03`) — single-shot run_mission, no approval gate. Fractal Web Solutions.
 - **Wakanda** (this commit) — `GateClassifier` + `WakandaSupervisor` + 2 new routes. ATS / All the Smoke. Conservative defaults locked: gate-when-unsure, single operator, no cascade on reject. High-risk safety floor cannot be downgraded by `always_pass` overrides.
 
+### Cockpit brand-aware mode switcher — Just Landed
+- Brand picker replaces mode dropdown (VS/LX, Fractal, ATS)
+- Per-brand color theme + per-brand operator hint
+- `handleLaunch` + `handleApprove`/`handleReject` branch per mode
+- Approval queue conditional (Batman + Wakanda when gated tasks exist)
+- Single contextual status: "Waiting on you — N to review" / "Running…" / "Done"
+- TS clean
+
 ### Remaining
-- Mode switching in cockpit UI (currently Batman-only)
+- Tailwind install in ui/ (cockpit classes won't render styled without it)
+- UI unit tests (Vitest scaffold)
 - Wakanda-specific tool registry entries (when ATS workflow surfaces concrete needs)
 - Multi-approver chain (Phase 4)
+- **Resonance OS integration** — Nick raised at session close, not yet specced. Memory: `resonance_os_integration_pending.md`
 
 ### Phase 3–5 — NOT STARTED
 
