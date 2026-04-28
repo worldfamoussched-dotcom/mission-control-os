@@ -204,3 +204,4 @@ alembic upgrade head  # When migrations added
 - ✅ Frontend hooks and types
 - ✅ .env.example with all vars
 - ⏳ Human review + tests execution
+# oracle-os
