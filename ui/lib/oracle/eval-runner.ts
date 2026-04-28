@@ -1,12 +1,14 @@
 // Oracle OS v0.7 — Executable Eval Runner
 // Fetches real evals from API route, falls back to mock if unavailable.
 // Shows REAL / MOCK source per result.
+// Integrates Rule Activation Monitor v0.1 for Gate 3 validation.
 
 import { retrievalModes } from "./retrieval-gate";
 import { getWikiCompilerStatus } from "./wiki-compiler";
 import { getOpportunityGraphMock } from "./opportunity-graph";
 import { domainOptions, riskOptions, destinationOptions } from "./source-classifier";
 import { getOracleLayerStatus } from "./layer-status";
+import { detectRuleActivations, formatRuleActivationOutput, type RuleActivationResult } from "./rule-activation-monitor";
 
 export type EvalStatus = "PASS" | "WARN" | "FAIL" | "NOT_WIRED";
 
@@ -26,10 +28,11 @@ export interface EvalSuiteResult {
   total: number;
   source: "REAL" | "MOCK";
   timestamp: string;
+  ruleActivation?: RuleActivationResult;
 }
 
 // Mock version — validates against TypeScript mock modules (structural check)
-export function runOracleEvalsMock(): EvalSuiteResult {
+export function runOracleEvalsMock(userMessage?: string): EvalSuiteResult {
   const now = new Date().toISOString();
   const results: EvalResult[] = [
     runBootstrapEvalMock(now),
@@ -39,13 +42,36 @@ export function runOracleEvalsMock(): EvalSuiteResult {
     runSourceClassifierEvalMock(now),
   ];
 
-  return {
+  const suite: EvalSuiteResult = {
     results,
     passed: results.filter((r) => r.status === "PASS").length,
     total: results.length,
     source: "MOCK",
     timestamp: now,
   };
+
+  // Gate 3 integration: detect rule activations if user message provided
+  if (userMessage) {
+    const mock_8d_rules = {
+      "Mathematical Structure — Always On": "Surface underlying structure in every response",
+      "Rule 1 — Scope Gate": "Is this true regardless of what project Nick is working on?",
+      "Rule 2 — Progressive Disclosure": "Load companion files only when relevant",
+      "Rule 3 — Corrections Log": "Log drift immediately when detected",
+      "Hard Boundaries — No Exceptions": "Never make purchases, disclose IP, or take public actions"
+    };
+
+    const gate_3_failed = results.some(r => r.status === "FAIL" && r.id.includes("retrieval"));
+
+    suite.ruleActivation = detectRuleActivations({
+      user_message: userMessage,
+      active_role: "task",
+      rules_8d: mock_8d_rules,
+      state_16d: { phase: 1, gate_status: "TESTING" },
+      gate_3_failed
+    });
+  }
+
+  return suite;
 }
 
 export function getEvalStatusMock(): EvalSuiteResult {
