@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — Memory Surgery Interface</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308;
+    --bg-panel: rgba(8, 12, 24, 0.88);
+    --border: rgba(60, 180, 220, 0.12);
+    --cyan: #3cb4dc;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --orange: #e67e22;
+    --gold: #C9A227;
+    --purple: #9b59b6;
+    --teal: #1a9e8f;
+    --text: #c8d6e5;
+    --text-dim: rgba(200, 214, 229, 0.45);
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-mono);
+    overflow: hidden; height: 100vh; width: 100vw;
+  }
+
+  .header {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 44px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel); backdrop-filter: blur(16px); z-index: 200;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--cyan); }
+  .plate-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .surgery-status {
+    font-size: 11px; letter-spacing: 1px;
+    padding: 3px 12px; border-radius: 4px;
+  }
+
+  .surgery-active {
+    background: rgba(231, 76, 60, 0.12);
+    color: var(--red);
+    animation: pulse-s 2s ease infinite;
+  }
+
+  .surgery-complete {
+    background: rgba(46, 204, 113, 0.12);
+    color: var(--green);
+  }
+
+  @keyframes pulse-s { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+  /* Split view */
+  .split-container {
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+    display: grid; grid-template-columns: 1fr 60px 1fr;
+    gap: 0;
+  }
+
+  .split-pane {
+    position: relative; overflow: hidden;
+    background: var(--bg);
+  }
+
+  .split-divider {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    gap: 12px;
+  }
+
+  .split-label {
+    font-size: 8px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--text-dim);
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  .arrow-down {
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--cyan); font-size: 16px;
+  }
+
+  .pane-label {
+    position: absolute; top: 14px; left: 16px;
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    z-index: 10;
+  }
+
+  canvas { width: 100%; height: 100%; }
+
+  /* Operations Panel */
+  .ops-panel {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 8px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 16px;
+    backdrop-filter: blur(12px); z-index: 50;
+  }
+
+  .op-step {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 5px;
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    border: 1px solid var(--border);
+    transition: all 0.4s;
+  }
+
+  .op-step.active {
+    border-color: var(--cyan);
+    background: rgba(60, 180, 220, 0.08);
+    color: var(--cyan);
+  }
+
+  .op-step.complete {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(46, 204, 113, 0.06);
+  }
+
+  .op-step.pending { color: var(--text-dim); }
+
+  .op-icon { font-size: 11px; }
+
+  /* Metrics */
+  .surgery-metrics {
+    position: fixed; top: 68px; right: 20px;
+    width: 190px; background: var(--bg-panel);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; backdrop-filter: blur(12px); z-index: 50;
+  }
+
+  .surgery-metrics h3 {
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--cyan); margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+
+  .sm-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .sm-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+  .sm-val { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate V — Memory Surgery Interface</span>
+  </div>
+  <span class="surgery-status surgery-active" id="surgery-badge">OPERATING</span>
+</div>
+
+<div class="split-container">
+  <div class="split-pane" id="before-pane">
+    <div class="pane-label" style="color: var(--red);">Before</div>
+    <canvas id="before-canvas"></canvas>
+  </div>
+
+  <div class="split-divider">
+    <span class="split-label">Surgery</span>
+    <div class="arrow-down">&rarr;</div>
+    <span class="split-label">Pipeline</span>
+  </div>
+
+  <div class="split-pane" id="after-pane">
+    <div class="pane-label" style="color: var(--green);">After</div>
+    <canvas id="after-canvas"></canvas>
+  </div>
+</div>
+
+<div class="ops-panel">
+  <div class="op-step complete" id="op1"><span class="op-icon">1</span> Isolate</div>
+  <div class="op-step complete" id="op2"><span class="op-icon">2</span> Cut Loop</div>
+  <div class="op-step active" id="op3"><span class="op-icon">3</span> Rewire</div>
+  <div class="op-step pending" id="op4"><span class="op-icon">4</span> Merge</div>
+  <div class="op-step pending" id="op5"><span class="op-icon">5</span> Rollback</div>
+  <div class="op-step pending" id="op6"><span class="op-icon">6</span> Validate</div>
+</div>
+
+<div class="surgery-metrics">
+  <h3>Surgery State</h3>
+  <div class="sm-row">
+    <span class="sm-label">Nodes</span>
+    <span class="sm-val" style="color: var(--cyan);" id="s-nodes">24</span>
+  </div>
+  <div class="sm-row">
+    <span class="sm-label">Contradictions</span>
+    <span class="sm-val" style="color: var(--red);" id="s-contra">3</span>
+  </div>
+  <div class="sm-row">
+    <span class="sm-label">Loops Cut</span>
+    <span class="sm-val" style="color: var(--orange);" id="s-cuts">0</span>
+  </div>
+  <div class="sm-row">
+    <span class="sm-label">Rewired</span>
+    <span class="sm-val" style="color: var(--cyan);" id="s-rewired">0</span>
+  </div>
+  <div class="sm-row">
+    <span class="sm-label">Coherence</span>
+    <span class="sm-val" style="color: var(--green);" id="s-cohere">0.42</span>
+  </div>
+  <div class="sm-row">
+    <span class="sm-label">Step</span>
+    <span class="sm-val" style="color: var(--gold);" id="s-step">3/6</span>
+  </div>
+</div>
+
+<script>
+const beforeCanvas = document.getElementById('before-canvas');
+const afterCanvas = document.getElementById('after-canvas');
+const bCtx = beforeCanvas.getContext('2d');
+const aCtx = afterCanvas.getContext('2d');
+let time = 0;
+
+// ─── Graph structure ───
+// Before: has contradiction loops
+// After: progressively healed
+
+const NODE_COUNT = 24;
+const beforeNodes = [];
+const afterNodes = [];
+const beforeEdges = [];
+const afterEdges = [];
+
+// Contradiction loop indices
+const loopNodes = [3, 7, 11, 15, 3]; // circular
+const contradictionNodes = new Set([3, 7, 11, 15]);
+const isolatedNodes = new Set();
+const cutEdges = new Set();
+const rewiredEdges = [];
+
+function initGraphs() {
+  // Create nodes in a organic cluster layout
+  for (let i = 0; i < NODE_COUNT; i++) {
+    const angle = (i / NODE_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+    const radius = 0.2 + Math.random() * 0.2;
+    const isContradiction = contradictionNodes.has(i);
+
+    beforeNodes.push({
+      id: i,
+      baseAngle: angle,
+      baseRadius: radius,
+      x: 0, y: 0,
+      size: isContradiction ? 5 : 3.5,
+      state: isContradiction ? 'contradiction' : 'normal',
+      pulseOffset: Math.random() * Math.PI * 2,
+      wobble: isContradiction ? 0.008 : 0
+    });
+
+    afterNodes.push({
+      id: i,
+      baseAngle: angle,
+      baseRadius: radius,
+      x: 0, y: 0,
+      size: 3.5,
+      state: 'healing',
+      pulseOffset: Math.random() * Math.PI * 2,
+      wobble: 0
+    });
+  }
+
+  // Before edges — includes the contradiction loop
+  for (let i = 0; i < NODE_COUNT; i++) {
+    // Normal connections
+    const neighbors = [
+      (i + 1) % NODE_COUNT,
+      (i + 3) % NODE_COUNT
+    ];
+    neighbors.forEach(j => {
+      if (!beforeEdges.find(e => (e.a === i && e.b === j) || (e.a === j && e.b === i))) {
+        beforeEdges.push({
+          a: i, b: j,
+          isLoop: false,
+          cut: false,
+          strength: 0.3 + Math.random() * 0.5
+        });
+      }
+    });
+  }
+
+  // Add contradiction loop edges explicitly
+  for (let i = 0; i < loopNodes.length - 1; i++) {
+    beforeEdges.push({
+      a: loopNodes[i], b: loopNodes[i + 1],
+      isLoop: true,
+      cut: false,
+      strength: 0.8
+    });
+  }
+
+  // After edges — copy but will be modified
+  beforeEdges.forEach(e => {
+    afterEdges.push({ ...e, healProgress: 0 });
+  });
+}
+
+// ─── Surgery Steps ───
+let currentStep = 0;
+let stepTimer = 0;
+const STEP_DURATION = 250;
+let coherence = 0.42;
+
+function advanceStep() {
+  currentStep++;
+  stepTimer = 0;
+
+  const ops = ['op1', 'op2', 'op3', 'op4', 'op5', 'op6'];
+  ops.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (i < currentStep) el.className = 'op-step complete';
+    else if (i === currentStep) el.className = 'op-step active';
+    else el.className = 'op-step pending';
+  });
+
+  document.getElementById('s-step').textContent = `${Math.min(currentStep + 1, 6)}/6`;
+
+  if (currentStep >= 6) {
+    document.getElementById('surgery-badge').textContent = 'COMPLETE';
+    document.getElementById('surgery-badge').className = 'surgery-status surgery-complete';
+
+    // Reset after delay
+    setTimeout(() => {
+      currentStep = 0;
+      stepTimer = 0;
+      coherence = 0.42;
+
+      // Reset states
+      beforeEdges.forEach(e => e.cut = false);
+      afterEdges.forEach(e => e.healProgress = 0);
+      afterNodes.forEach(n => { n.state = 'healing'; n.size = 3.5; });
+      isolatedNodes.clear();
+      cutEdges.clear();
+      rewiredEdges.length = 0;
+
+      document.getElementById('s-contra').textContent = '3';
+      document.getElementById('s-cuts').textContent = '0';
+      document.getElementById('s-rewired').textContent = '0';
+      document.getElementById('s-cohere').textContent = '0.42';
+      document.getElementById('surgery-badge').textContent = 'OPERATING';
+      document.getElementById('surgery-badge').className = 'surgery-status surgery-active';
+
+      advanceStep(); // restart at step 0
+    }, 3000);
+  }
+}
+
+function updateSurgery() {
+  stepTimer++;
+
+  switch (currentStep) {
+    case 1: // Isolate
+      if (stepTimer === 30) {
+        contradictionNodes.forEach(id => isolatedNodes.add(id));
+      }
+      coherence = 0.42 + stepTimer / STEP_DURATION * 0.08;
+      break;
+
+    case 2: // Cut Loop
+      if (stepTimer % 40 === 0) {
+        const loopEdge = beforeEdges.find(e => e.isLoop && !e.cut);
+        if (loopEdge) {
+          loopEdge.cut = true;
+          cutEdges.add(`${loopEdge.a}-${loopEdge.b}`);
+          const cuts = beforeEdges.filter(e => e.cut).length;
+          document.getElementById('s-cuts').textContent = cuts;
+        }
+      }
+      coherence = 0.50 + stepTimer / STEP_DURATION * 0.1;
+      break;
+
+    case 3: // Rewire
+      if (stepTimer % 50 === 0 && rewiredEdges.length < 3) {
+        const from = Array.from(contradictionNodes)[rewiredEdges.length];
+        const target = (from + 5) % NODE_COUNT;
+        rewiredEdges.push({ a: from, b: target, progress: 0 });
+        document.getElementById('s-rewired').textContent = rewiredEdges.length;
+      }
+      rewiredEdges.forEach(e => { if (e.progress < 1) e.progress += 0.01; });
+      coherence = 0.60 + stepTimer / STEP_DURATION * 0.1;
+      break;
+
+    case 4: // Merge
+      afterNodes.forEach(n => {
+        if (contradictionNodes.has(n.id)) {
+          n.state = 'merged';
+          n.size = 4;
+        }
+      });
+      coherence = 0.70 + stepTimer / STEP_DURATION * 0.1;
+      document.getElementById('s-contra').textContent = '1';
+      break;
+
+    case 5: // Rollback
+      afterEdges.forEach(e => {
+        if (e.isLoop) e.healProgress = Math.min(1, e.healProgress + 0.005);
+      });
+      coherence = 0.80 + stepTimer / STEP_DURATION * 0.08;
+      document.getElementById('s-contra').textContent = '0';
+      break;
+
+    case 6: // Validate
+      afterNodes.forEach(n => { n.state = 'healed'; });
+      coherence = 0.92 + stepTimer / STEP_DURATION * 0.05;
+      break;
+  }
+
+  document.getElementById('s-cohere').textContent = Math.min(0.97, coherence).toFixed(2);
+
+  if (stepTimer >= STEP_DURATION) advanceStep();
+}
+
+// ─── Rendering ───
+function resizeCanvases() {
+  const dpr = window.devicePixelRatio || 1;
+  [beforeCanvas, afterCanvas].forEach(c => {
+    const rect = c.parentElement.getBoundingClientRect();
+    c.width = rect.width * dpr;
+    c.height = rect.height * dpr;
+    c.style.width = rect.width + 'px';
+    c.style.height = rect.height + 'px';
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  });
+}
+
+function getPos(node, canvasEl) {
+  const w = canvasEl.width / (window.devicePixelRatio || 1);
+  const h = canvasEl.height / (window.devicePixelRatio || 1);
+  const cx = w / 2;
+  const cy = h / 2;
+  const scale = Math.min(w, h) * 0.9;
+
+  const wobbleX = node.wobble ? Math.sin(time * 0.12 + node.id * 1.5) * 5 : 0;
+  const wobbleY = node.wobble ? Math.cos(time * 0.1 + node.id * 2.1) * 5 : 0;
+
+  return {
+    x: cx + Math.cos(node.baseAngle) * node.baseRadius * scale + wobbleX,
+    y: cy + Math.sin(node.baseAngle) * node.baseRadius * scale + wobbleY
+  };
+}
+
+function drawGraph(ctx, nodes, edges, canvasEl, isBefore) {
+  const w = canvasEl.width / (window.devicePixelRatio || 1);
+  const h = canvasEl.height / (window.devicePixelRatio || 1);
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Edges
+  for (const edge of edges) {
+    const a = nodes[edge.a];
+    const b = nodes[edge.b];
+    if (!a || !b) continue;
+    const pa = getPos(a, canvasEl);
+    const pb = getPos(b, canvasEl);
+
+    if (isBefore) {
+      if (edge.isLoop) {
+        if (edge.cut) {
+          // Cut effect — dashed, fading
+          ctx.strokeStyle = 'rgba(231, 76, 60, 0.15)';
+          ctx.setLineDash([3, 5]);
+          ctx.lineWidth = 1;
+        } else {
+          // Active contradiction edge — pulsing red
+          const pulse = Math.sin(time * 0.06) * 0.2 + 0.6;
+          ctx.strokeStyle = `rgba(231, 76, 60, ${pulse * 0.5})`;
+          ctx.setLineDash([]);
+          ctx.lineWidth = 2;
+        }
+      } else {
+        ctx.strokeStyle = `rgba(60, 180, 220, ${edge.strength * 0.1})`;
+        ctx.setLineDash([]);
+        ctx.lineWidth = 0.7;
+      }
+    } else {
+      // After pane
+      if (edge.isLoop) {
+        if (edge.healProgress > 0) {
+          ctx.strokeStyle = `rgba(46, 204, 113, ${edge.healProgress * 0.3})`;
+          ctx.lineWidth = 1.5 * edge.healProgress;
+          ctx.setLineDash([]);
+        } else {
+          ctx.strokeStyle = 'rgba(100, 100, 100, 0.05)';
+          ctx.setLineDash([2, 4]);
+          ctx.lineWidth = 0.5;
+        }
+      } else {
+        ctx.strokeStyle = `rgba(60, 180, 220, ${edge.strength * 0.12})`;
+        ctx.setLineDash([]);
+        ctx.lineWidth = 0.7;
+      }
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Rewired edges (after pane only)
+  if (!isBefore) {
+    for (const re of rewiredEdges) {
+      if (re.progress <= 0) continue;
+      const a = nodes[re.a];
+      const b = nodes[re.b];
+      const pa = getPos(a, canvasEl);
+      const pb = getPos(b, canvasEl);
+
+      // Animated draw
+      const endX = pa.x + (pb.x - pa.x) * re.progress;
+      const endY = pa.y + (pb.y - pa.y) * re.progress;
+
+      ctx.strokeStyle = `rgba(60, 180, 220, ${0.4 * re.progress})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      // Spark at tip
+      if (re.progress < 1) {
+        const grd = ctx.createRadialGradient(endX, endY, 0, endX, endY, 8);
+        grd.addColorStop(0, `rgba(60, 180, 220, 0.5)`);
+        grd.addColorStop(1, 'rgba(60, 180, 220, 0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(endX, endY, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Isolation boundary (before pane)
+  if (isBefore && isolatedNodes.size > 0) {
+    isolatedNodes.forEach(id => {
+      const pos = getPos(nodes[id], canvasEl);
+      ctx.strokeStyle = 'rgba(230, 126, 34, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  }
+
+  // Nodes
+  for (const node of nodes) {
+    const pos = getPos(node, canvasEl);
+    const pulse = Math.sin(time * 0.025 + node.pulseOffset) * 0.2 + 0.8;
+
+    let color;
+    if (isBefore) {
+      color = node.state === 'contradiction'
+        ? { r: 231, g: 76, b: 60 }
+        : { r: 60, g: 180, b: 220 };
+    } else {
+      if (node.state === 'healed') color = { r: 46, g: 204, b: 113 };
+      else if (node.state === 'merged') color = { r: 26, g: 158, b: 143 };
+      else color = { r: 60, g: 180, b: 220 };
+    }
+
+    // Glow
+    const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, node.size * 3.5);
+    grd.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${0.18 * pulse})`);
+    grd.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, node.size * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Contradiction fracture lines
+    if (isBefore && node.state === 'contradiction') {
+      ctx.strokeStyle = `rgba(231, 76, 60, ${0.3 * pulse})`;
+      ctx.lineWidth = 1;
+      for (let j = 0; j < 3; j++) {
+        const angle = (j / 3) * Math.PI * 2 + time * 0.01;
+        const len = 8 + Math.sin(time * 0.05 + j) * 3;
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        ctx.lineTo(pos.x + Math.cos(angle) * len, pos.y + Math.sin(angle) * len);
+        ctx.stroke();
+      }
+    }
+
+    // Node dot
+    ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${0.6 + pulse * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, node.size * pulse, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Loop label (before only)
+  if (isBefore) {
+    const loopCenter = { x: 0, y: 0 };
+    let count = 0;
+    contradictionNodes.forEach(id => {
+      const pos = getPos(nodes[id], canvasEl);
+      loopCenter.x += pos.x;
+      loopCenter.y += pos.y;
+      count++;
+    });
+    loopCenter.x /= count;
+    loopCenter.y /= count;
+
+    ctx.font = '9px "Space Grotesk"';
+    ctx.fillStyle = 'rgba(231, 76, 60, 0.4)';
+    ctx.textAlign = 'center';
+    ctx.fillText('CONTRADICTION', loopCenter.x, loopCenter.y - 6);
+    ctx.font = '8px "IBM Plex Mono"';
+    ctx.fillText('LOOP', loopCenter.x, loopCenter.y + 6);
+    ctx.textAlign = 'left';
+  }
+
+  // Coherent label (after, when healed)
+  if (!isBefore && currentStep >= 5) {
+    const cx2 = w / 2;
+    const cy2 = h / 2;
+    ctx.font = '9px "Space Grotesk"';
+    ctx.fillStyle = `rgba(46, 204, 113, ${0.4 + Math.sin(time * 0.02) * 0.1})`;
+    ctx.textAlign = 'center';
+    ctx.fillText('COHERENT', cx2, cy2 - 6);
+    ctx.font = '8px "IBM Plex Mono"';
+    ctx.fillText('TOPOLOGY', cx2, cy2 + 6);
+    ctx.textAlign = 'left';
+  }
+}
+
+// ─── Main Loop ───
+function render() {
+  time++;
+  updateSurgery();
+
+  drawGraph(bCtx, beforeNodes, beforeEdges, beforeCanvas, true);
+  drawGraph(aCtx, afterNodes, afterEdges, afterCanvas, false);
+
+  requestAnimationFrame(render);
+}
+
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+initGraphs();
+advanceStep(); // start at step 1
+render();
+</script>
+</body>
+</html>

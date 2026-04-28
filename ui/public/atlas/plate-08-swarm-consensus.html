@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — Swarm Consensus Dynamics</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308; --bg-panel: rgba(8, 12, 24, 0.88);
+    --border: rgba(60, 180, 220, 0.12); --cyan: #3cb4dc;
+    --green: #2ecc71; --red: #e74c3c; --orange: #e67e22;
+    --gold: #C9A227; --purple: #9b59b6; --teal: #1a9e8f;
+    --text: #c8d6e5; --text-dim: rgba(200, 214, 229, 0.45);
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); overflow: hidden; height: 100vh; width: 100vw; }
+
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; height: 44px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid var(--border);
+    background: var(--bg-panel); backdrop-filter: blur(16px); z-index: 200;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--cyan); }
+  .plate-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .layout {
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+    display: grid; grid-template-columns: 1fr 300px;
+    gap: 1px; background: rgba(60, 180, 220, 0.04);
+  }
+
+  .main-panel { background: var(--bg); position: relative; }
+  .side-panel { background: var(--bg-panel); display: flex; flex-direction: column; }
+
+  #chart-canvas { width: 100%; height: 100%; }
+
+  .side-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .side-title {
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--cyan); margin-bottom: 10px;
+  }
+
+  .m-row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .m-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+  .m-val { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* Heatmap */
+  #heatmap-canvas {
+    width: 100%;
+    aspect-ratio: 1;
+  }
+
+  .heatmap-title {
+    font-size: 8px; color: var(--text-dim); letter-spacing: 1px;
+    text-transform: uppercase; text-align: center; margin-top: 6px;
+  }
+
+  .equation {
+    padding: 12px 16px;
+    font-size: 10px; color: rgba(60, 180, 220, 0.35);
+    line-height: 1.9; margin-top: auto;
+    border-top: 1px solid var(--border);
+  }
+  .equation em { color: var(--cyan); font-style: normal; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate VIII — Swarm Consensus Dynamics</span>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="main-panel">
+    <canvas id="chart-canvas"></canvas>
+  </div>
+
+  <div class="side-panel">
+    <div class="side-section">
+      <div class="side-title">Disagreement Energy</div>
+      <div class="m-row"><span class="m-label">D(t)</span><span class="m-val" style="color: var(--green);" id="d-val">0.037</span></div>
+      <div class="m-row"><span class="m-label">D(t+1) &lt; D(t)</span><span class="m-val" style="color: var(--green);" id="d-converge">True</span></div>
+      <div class="m-row"><span class="m-label">Status</span><span class="m-val" style="color: var(--green);" id="d-status">Converging</span></div>
+      <div class="m-row"><span class="m-label">Agents</span><span class="m-val" style="color: var(--cyan);">12</span></div>
+      <div class="m-row"><span class="m-label">Round</span><span class="m-val" style="color: var(--cyan);" id="d-round">1</span></div>
+    </div>
+
+    <div class="side-section" style="flex: 1; overflow: hidden;">
+      <div class="side-title">Agent Agreement Matrix</div>
+      <canvas id="heatmap-canvas"></canvas>
+      <div class="heatmap-title">12 x 12 pairwise agreement</div>
+    </div>
+
+    <div class="equation">
+      <em>D(t)</em> = &Sigma;<sub>i&lt;j</sub> w<sub>ij</sub> |b<sub>i</sub> &minus; b<sub>j</sub>|<sup>2</sup><br>
+      <em>D(t+1)</em> &lt; <em>D(t)</em> &rArr; converging
+    </div>
+  </div>
+</div>
+
+<script>
+const chartCanvas = document.getElementById('chart-canvas');
+const chartCtx = chartCanvas.getContext('2d');
+const heatCanvas = document.getElementById('heatmap-canvas');
+const heatCtx = heatCanvas.getContext('2d');
+let time = 0;
+
+const AGENTS = 12;
+const MAX_POINTS = 400;
+
+// Disagreement history
+const withConsensus = [];
+const withoutConsensus = [];
+let round = 1;
+
+// Agent beliefs
+const beliefs = Array.from({ length: AGENTS }, () => 0.3 + Math.random() * 0.4);
+const agreementMatrix = Array.from({ length: AGENTS }, () => Array(AGENTS).fill(0.5));
+
+function computeDisagreement(b) {
+  let d = 0;
+  for (let i = 0; i < b.length; i++) {
+    for (let j = i + 1; j < b.length; j++) {
+      d += (b[i] - b[j]) ** 2;
+    }
+  }
+  return d / (b.length * (b.length - 1) / 2);
+}
+
+function updateBeliefs() {
+  // With consensus: beliefs converge
+  for (let i = 0; i < AGENTS; i++) {
+    const avg = beliefs.reduce((s, b) => s + b, 0) / AGENTS;
+    beliefs[i] += (avg - beliefs[i]) * 0.02 + (Math.random() - 0.5) * 0.005;
+    beliefs[i] = Math.max(0, Math.min(1, beliefs[i]));
+  }
+
+  // Update agreement matrix
+  for (let i = 0; i < AGENTS; i++) {
+    for (let j = 0; j < AGENTS; j++) {
+      agreementMatrix[i][j] = 1 - Math.abs(beliefs[i] - beliefs[j]);
+    }
+  }
+
+  const d = computeDisagreement(beliefs);
+  withConsensus.push(d);
+  if (withConsensus.length > MAX_POINTS) withConsensus.shift();
+
+  // Without consensus: random walk
+  const noConsensusD = withoutConsensus.length > 0
+    ? withoutConsensus[withoutConsensus.length - 1] + (Math.random() - 0.48) * 0.005
+    : 0.15;
+  withoutConsensus.push(Math.max(0.05, Math.min(0.3, noConsensusD)));
+  if (withoutConsensus.length > MAX_POINTS) withoutConsensus.shift();
+
+  // Metrics
+  document.getElementById('d-val').textContent = d.toFixed(4);
+  const converging = withConsensus.length > 2 && d < withConsensus[withConsensus.length - 2];
+  document.getElementById('d-converge').textContent = converging ? 'True' : 'False';
+  document.getElementById('d-converge').style.color = converging ? 'var(--green)' : 'var(--red)';
+  document.getElementById('d-status').textContent = converging ? 'Converging' : 'Oscillating';
+  document.getElementById('d-status').style.color = converging ? 'var(--green)' : 'var(--orange)';
+
+  if (time % 60 === 0) {
+    round++;
+    document.getElementById('d-round').textContent = round;
+  }
+
+  // Occasionally inject perturbation and reset
+  if (time > 0 && time % 500 === 0) {
+    for (let i = 0; i < AGENTS; i++) {
+      beliefs[i] = 0.3 + Math.random() * 0.4;
+    }
+  }
+}
+
+function resizeChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = chartCanvas.parentElement.getBoundingClientRect();
+  chartCanvas.width = rect.width * dpr;
+  chartCanvas.height = rect.height * dpr;
+  chartCanvas.style.width = rect.width + 'px';
+  chartCanvas.style.height = rect.height + 'px';
+  chartCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function resizeHeat() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = heatCanvas.parentElement.getBoundingClientRect();
+  const size = Math.min(rect.width - 32, 260);
+  heatCanvas.width = size * dpr;
+  heatCanvas.height = size * dpr;
+  heatCanvas.style.width = size + 'px';
+  heatCanvas.style.height = size + 'px';
+  heatCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawChart() {
+  const w = chartCanvas.width / (window.devicePixelRatio || 1);
+  const h = chartCanvas.height / (window.devicePixelRatio || 1);
+  const pad = { top: 50, right: 40, bottom: 50, left: 70 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  chartCtx.clearRect(0, 0, w, h);
+
+  // Title
+  chartCtx.font = '11px "Space Grotesk"';
+  chartCtx.fillStyle = 'rgba(200, 214, 229, 0.5)';
+  chartCtx.textAlign = 'center';
+  chartCtx.fillText('Disagreement Contraction Over Time', w / 2, 30);
+  chartCtx.textAlign = 'left';
+
+  // Axes
+  chartCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  chartCtx.lineWidth = 1;
+  chartCtx.beginPath();
+  chartCtx.moveTo(pad.left, pad.top);
+  chartCtx.lineTo(pad.left, pad.top + plotH);
+  chartCtx.lineTo(pad.left + plotW, pad.top + plotH);
+  chartCtx.stroke();
+
+  // Y-axis (log-ish scale)
+  chartCtx.font = '8px "IBM Plex Mono"';
+  chartCtx.fillStyle = 'rgba(200, 214, 229, 0.25)';
+  chartCtx.textAlign = 'right';
+
+  const yMax = 0.25;
+  const yTicks = [0, 0.05, 0.1, 0.15, 0.2, 0.25];
+  yTicks.forEach(v => {
+    const y = pad.top + plotH - (v / yMax) * plotH;
+    chartCtx.fillText(v.toFixed(2), pad.left - 8, y + 3);
+    chartCtx.strokeStyle = 'rgba(255,255,255,0.03)';
+    chartCtx.beginPath();
+    chartCtx.moveTo(pad.left, y);
+    chartCtx.lineTo(pad.left + plotW, y);
+    chartCtx.stroke();
+  });
+
+  // Axis labels
+  chartCtx.textAlign = 'center';
+  chartCtx.fillStyle = 'rgba(200, 214, 229, 0.2)';
+  chartCtx.fillText('time (t)', pad.left + plotW / 2, pad.top + plotH + 35);
+
+  chartCtx.save();
+  chartCtx.translate(20, pad.top + plotH / 2);
+  chartCtx.rotate(-Math.PI / 2);
+  chartCtx.fillText('D(t) disagreement', 0, 0);
+  chartCtx.restore();
+  chartCtx.textAlign = 'left';
+
+  // Draw "without consensus" line
+  if (withoutConsensus.length > 1) {
+    // Fill
+    chartCtx.fillStyle = 'rgba(231, 76, 60, 0.03)';
+    chartCtx.beginPath();
+    chartCtx.moveTo(pad.left, pad.top + plotH);
+    for (let i = 0; i < withoutConsensus.length; i++) {
+      const x = pad.left + (i / MAX_POINTS) * plotW;
+      const y = pad.top + plotH - (Math.min(withoutConsensus[i], yMax) / yMax) * plotH;
+      chartCtx.lineTo(x, y);
+    }
+    chartCtx.lineTo(pad.left + ((withoutConsensus.length - 1) / MAX_POINTS) * plotW, pad.top + plotH);
+    chartCtx.fill();
+
+    // Line
+    chartCtx.strokeStyle = 'rgba(231, 76, 60, 0.4)';
+    chartCtx.lineWidth = 1.5;
+    chartCtx.setLineDash([4, 4]);
+    chartCtx.beginPath();
+    for (let i = 0; i < withoutConsensus.length; i++) {
+      const x = pad.left + (i / MAX_POINTS) * plotW;
+      const y = pad.top + plotH - (Math.min(withoutConsensus[i], yMax) / yMax) * plotH;
+      if (i === 0) chartCtx.moveTo(x, y);
+      else chartCtx.lineTo(x, y);
+    }
+    chartCtx.stroke();
+    chartCtx.setLineDash([]);
+  }
+
+  // Draw "with consensus" line
+  if (withConsensus.length > 1) {
+    // Fill
+    const fillGrad = chartCtx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+    fillGrad.addColorStop(0, 'rgba(46, 204, 113, 0.06)');
+    fillGrad.addColorStop(1, 'rgba(46, 204, 113, 0)');
+
+    chartCtx.fillStyle = fillGrad;
+    chartCtx.beginPath();
+    chartCtx.moveTo(pad.left, pad.top + plotH);
+    for (let i = 0; i < withConsensus.length; i++) {
+      const x = pad.left + (i / MAX_POINTS) * plotW;
+      const y = pad.top + plotH - (Math.min(withConsensus[i], yMax) / yMax) * plotH;
+      chartCtx.lineTo(x, y);
+    }
+    chartCtx.lineTo(pad.left + ((withConsensus.length - 1) / MAX_POINTS) * plotW, pad.top + plotH);
+    chartCtx.fill();
+
+    // Line
+    chartCtx.strokeStyle = 'rgba(46, 204, 113, 0.7)';
+    chartCtx.lineWidth = 2;
+    chartCtx.beginPath();
+    for (let i = 0; i < withConsensus.length; i++) {
+      const x = pad.left + (i / MAX_POINTS) * plotW;
+      const y = pad.top + plotH - (Math.min(withConsensus[i], yMax) / yMax) * plotH;
+      if (i === 0) chartCtx.moveTo(x, y);
+      else chartCtx.lineTo(x, y);
+    }
+    chartCtx.stroke();
+
+    // Current dot
+    const lastX = pad.left + ((withConsensus.length - 1) / MAX_POINTS) * plotW;
+    const lastY = pad.top + plotH - (Math.min(withConsensus[withConsensus.length - 1], yMax) / yMax) * plotH;
+    const pulse = Math.sin(time * 0.05) * 0.3 + 0.7;
+
+    const grd = chartCtx.createRadialGradient(lastX, lastY, 0, lastX, lastY, 10);
+    grd.addColorStop(0, `rgba(46, 204, 113, ${0.4 * pulse})`);
+    grd.addColorStop(1, 'rgba(46, 204, 113, 0)');
+    chartCtx.fillStyle = grd;
+    chartCtx.beginPath();
+    chartCtx.arc(lastX, lastY, 10, 0, Math.PI * 2);
+    chartCtx.fill();
+
+    chartCtx.fillStyle = '#2ecc71';
+    chartCtx.beginPath();
+    chartCtx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+    chartCtx.fill();
+  }
+
+  // Legend
+  const legX = pad.left + plotW - 160;
+  const legY = pad.top + 15;
+
+  chartCtx.fillStyle = 'rgba(3, 3, 8, 0.7)';
+  chartCtx.fillRect(legX - 8, legY - 8, 175, 42);
+  chartCtx.strokeStyle = 'rgba(60, 180, 220, 0.1)';
+  chartCtx.strokeRect(legX - 8, legY - 8, 175, 42);
+
+  chartCtx.font = '9px "IBM Plex Mono"';
+
+  chartCtx.strokeStyle = 'rgba(46, 204, 113, 0.7)';
+  chartCtx.lineWidth = 2;
+  chartCtx.beginPath(); chartCtx.moveTo(legX, legY + 4); chartCtx.lineTo(legX + 20, legY + 4); chartCtx.stroke();
+  chartCtx.fillStyle = 'rgba(46, 204, 113, 0.6)';
+  chartCtx.fillText('With consensus', legX + 26, legY + 8);
+
+  chartCtx.strokeStyle = 'rgba(231, 76, 60, 0.4)';
+  chartCtx.setLineDash([4, 4]);
+  chartCtx.beginPath(); chartCtx.moveTo(legX, legY + 22); chartCtx.lineTo(legX + 20, legY + 22); chartCtx.stroke();
+  chartCtx.setLineDash([]);
+  chartCtx.fillStyle = 'rgba(231, 76, 60, 0.5)';
+  chartCtx.fillText('Without consensus', legX + 26, legY + 26);
+}
+
+function drawHeatmap() {
+  const w = heatCanvas.width / (window.devicePixelRatio || 1);
+  const h = heatCanvas.height / (window.devicePixelRatio || 1);
+  const cellSize = Math.floor(Math.min(w, h) / (AGENTS + 1));
+  const offset = cellSize;
+
+  heatCtx.clearRect(0, 0, w, h);
+
+  // Labels
+  heatCtx.font = '7px "IBM Plex Mono"';
+  heatCtx.fillStyle = 'rgba(200, 214, 229, 0.3)';
+
+  for (let i = 0; i < AGENTS; i++) {
+    // Row labels
+    heatCtx.textAlign = 'right';
+    heatCtx.fillText(`A${i + 1}`, offset - 4, offset + i * cellSize + cellSize / 2 + 3);
+    // Col labels
+    heatCtx.textAlign = 'center';
+    heatCtx.fillText(`A${i + 1}`, offset + i * cellSize + cellSize / 2, offset - 4);
+  }
+  heatCtx.textAlign = 'left';
+
+  // Cells
+  for (let i = 0; i < AGENTS; i++) {
+    for (let j = 0; j < AGENTS; j++) {
+      const agreement = agreementMatrix[i][j];
+      const x = offset + j * cellSize;
+      const y = offset + i * cellSize;
+
+      // Color: low agreement = warm, high = cool
+      let r, g, b;
+      if (agreement > 0.9) { r = 20; g = 160; b = 100; }
+      else if (agreement > 0.7) { r = 40; g = 140; b = 160; }
+      else if (agreement > 0.5) { r = 160; g = 140; b = 40; }
+      else { r = 180; g = 70; b: 40; b = 40; }
+
+      const alpha = 0.3 + agreement * 0.5;
+      heatCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      heatCtx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+      // Diagonal highlight
+      if (i === j) {
+        heatCtx.strokeStyle = 'rgba(60, 180, 220, 0.2)';
+        heatCtx.lineWidth = 1;
+        heatCtx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+      }
+    }
+  }
+}
+
+function render() {
+  time++;
+  updateBeliefs();
+  drawChart();
+
+  if (time % 3 === 0) drawHeatmap();
+
+  requestAnimationFrame(render);
+}
+
+window.addEventListener('resize', () => { resizeChart(); resizeHeat(); });
+resizeChart();
+resizeHeat();
+render();
+</script>
+</body>
+</html>

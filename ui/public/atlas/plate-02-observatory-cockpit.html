@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — Observatory Cockpit</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308;
+    --bg-panel: rgba(8, 12, 24, 0.88);
+    --border: rgba(60, 180, 220, 0.12);
+    --border-bright: rgba(60, 180, 220, 0.25);
+    --cyan: #3cb4dc;
+    --cyan-dim: rgba(60, 180, 220, 0.3);
+    --teal: #1a9e8f;
+    --green: #2ecc71;
+    --green-dim: rgba(46, 204, 113, 0.3);
+    --red: #e74c3c;
+    --red-dim: rgba(231, 76, 60, 0.3);
+    --orange: #e67e22;
+    --gold: #C9A227;
+    --purple: #9b59b6;
+    --text: #c8d6e5;
+    --text-dim: rgba(200, 214, 229, 0.45);
+    --text-bright: #e8f0f8;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Header Bar */
+  .header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+    backdrop-filter: blur(16px);
+    z-index: 200;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+
+  .plate-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .mode-switcher {
+    display: flex;
+    gap: 2px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    padding: 2px;
+  }
+
+  .mode-btn {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+  }
+
+  .mode-btn.active {
+    background: rgba(60, 180, 220, 0.15);
+    color: var(--cyan);
+  }
+
+  .mode-btn:hover:not(.active) {
+    color: var(--text);
+  }
+
+  .clock {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Grid Layout */
+  .cockpit-grid {
+    position: fixed;
+    top: 44px; left: 0; right: 0; bottom: 0;
+    display: grid;
+    grid-template-columns: 260px 1fr 280px;
+    grid-template-rows: 1fr 200px;
+    gap: 1px;
+    background: rgba(60, 180, 220, 0.04);
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .panel-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+
+  .panel-badge {
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+
+  .badge-healthy {
+    background: var(--green-dim);
+    color: var(--green);
+  }
+
+  .badge-warn {
+    background: rgba(230, 126, 34, 0.2);
+    color: var(--orange);
+  }
+
+  .badge-active {
+    background: rgba(60, 180, 220, 0.15);
+    color: var(--cyan);
+  }
+
+  /* Left Panel — Health Metrics */
+  .left-panel {
+    grid-row: 1 / 3;
+  }
+
+  .health-ring {
+    width: 140px;
+    height: 140px;
+    margin: 20px auto 16px;
+    position: relative;
+  }
+
+  .health-ring canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .health-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .health-pct {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--green);
+    line-height: 1;
+  }
+
+  .health-label {
+    font-size: 8px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .metrics-list {
+    padding: 0 16px;
+  }
+
+  .metric-group {
+    margin-bottom: 16px;
+  }
+
+  .metric-group-title {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .metric-val {
+    font-size: 12px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .val-green { color: var(--green); }
+  .val-cyan { color: var(--cyan); }
+  .val-orange { color: var(--orange); }
+  .val-red { color: var(--red); }
+  .val-purple { color: var(--purple); }
+  .val-dim { color: var(--text-dim); }
+
+  .metric-bar {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 2px;
+    margin-top: 3px;
+    overflow: hidden;
+  }
+
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+
+  /* Center Panel — Topology Canvas */
+  .center-panel {
+    position: relative;
+  }
+
+  #topology-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .topo-overlay {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 16px;
+    background: rgba(3, 3, 8, 0.7);
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .topo-stat {
+    text-align: center;
+  }
+
+  .topo-stat-val {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--cyan);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .topo-stat-label {
+    font-size: 8px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* Right Panel — Event Feed */
+  .right-panel {
+    grid-row: 1 / 3;
+  }
+
+  .event-feed {
+    padding: 8px 12px;
+    overflow-y: auto;
+    height: calc(100% - 44px);
+  }
+
+  .event-feed::-webkit-scrollbar { width: 3px; }
+  .event-feed::-webkit-scrollbar-track { background: transparent; }
+  .event-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .event-item {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: fadeIn 0.5s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .event-time {
+    font-size: 9px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .event-type {
+    font-size: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 6px;
+  }
+
+  .type-monitor { background: rgba(60, 180, 220, 0.12); color: var(--cyan); }
+  .type-repair { background: var(--green-dim); color: var(--green); }
+  .type-alert { background: var(--red-dim); color: var(--red); }
+  .type-learn { background: rgba(155, 89, 182, 0.15); color: var(--purple); }
+  .type-gate { background: rgba(200, 162, 39, 0.15); color: var(--gold); }
+
+  .event-msg {
+    font-size: 10px;
+    color: var(--text);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  /* Bottom Center — Stability Timeline */
+  .bottom-panel {
+    position: relative;
+  }
+
+  #timeline-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .timeline-label {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate VI — Oracle Observatory Cockpit</span>
+  </div>
+  <div class="header-right">
+    <div class="mode-switcher">
+      <button class="mode-btn active" data-mode="observer">Observer</button>
+      <button class="mode-btn" data-mode="engineer">Engineer</button>
+      <button class="mode-btn" data-mode="researcher">Researcher</button>
+      <button class="mode-btn" data-mode="governor">Governor</button>
+    </div>
+    <span class="clock" id="clock">00:00:00</span>
+  </div>
+</div>
+
+<div class="cockpit-grid">
+
+  <!-- LEFT: Health Metrics -->
+  <div class="panel left-panel">
+    <div class="panel-header">
+      <span class="panel-title">System Health</span>
+      <span class="panel-badge badge-healthy">HEALTHY</span>
+    </div>
+
+    <div class="health-ring">
+      <canvas id="health-canvas" width="280" height="280"></canvas>
+      <div class="health-center">
+        <div class="health-pct" id="health-pct">92</div>
+        <div class="health-label">Health</div>
+      </div>
+    </div>
+
+    <div class="metrics-list">
+      <div class="metric-group">
+        <div class="metric-group-title">Integrity</div>
+        <div class="metric-row">
+          <span class="metric-label">Files Tracked</span>
+          <span class="metric-val val-cyan">21</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Hash Match</span>
+          <span class="metric-val val-green">21/21</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Evals Pass</span>
+          <span class="metric-val val-green">12/12</span>
+        </div>
+      </div>
+
+      <div class="metric-group">
+        <div class="metric-group-title">Stability</div>
+        <div class="metric-row">
+          <span class="metric-label">V(x)</span>
+          <span class="metric-val val-green" id="m-vx">0.124</span>
+        </div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width: 12.4%; background: var(--green);"></div></div>
+        <div class="metric-row">
+          <span class="metric-label">&Delta;V</span>
+          <span class="metric-val val-green" id="m-dv">&minus;0.037</span>
+        </div>
+      </div>
+
+      <div class="metric-group">
+        <div class="metric-group-title">Cognitive State</div>
+        <div class="metric-row">
+          <span class="metric-label">Contradictions</span>
+          <span class="metric-val val-orange" id="m-contra">3</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Repairs Queued</span>
+          <span class="metric-val val-cyan" id="m-repairs">1</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Active Hypotheses</span>
+          <span class="metric-val val-purple" id="m-hypo">14</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Verifications</span>
+          <span class="metric-val val-cyan" id="m-verify">32</span>
+        </div>
+      </div>
+
+      <div class="metric-group">
+        <div class="metric-group-title">Memory</div>
+        <div class="metric-row">
+          <span class="metric-label">Nodes</span>
+          <span class="metric-val val-cyan">91</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Edges</span>
+          <span class="metric-val val-cyan">89</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Communities</span>
+          <span class="metric-val val-cyan">19</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Coherence</span>
+          <span class="metric-val val-green" id="m-cohere">0.81</span>
+        </div>
+        <div class="metric-bar"><div class="metric-bar-fill" style="width: 81%; background: var(--green);"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Topology Visualization -->
+  <div class="panel center-panel">
+    <div class="panel-header">
+      <span class="panel-title">Memory Topology</span>
+      <span class="panel-badge badge-active">LIVE</span>
+    </div>
+    <canvas id="topology-canvas"></canvas>
+    <div class="topo-overlay">
+      <div class="topo-stat">
+        <div class="topo-stat-val" id="t-nodes">91</div>
+        <div class="topo-stat-label">Nodes</div>
+      </div>
+      <div class="topo-stat">
+        <div class="topo-stat-val" id="t-edges">89</div>
+        <div class="topo-stat-label">Edges</div>
+      </div>
+      <div class="topo-stat">
+        <div class="topo-stat-val" id="t-communities">19</div>
+        <div class="topo-stat-label">Communities</div>
+      </div>
+      <div class="topo-stat">
+        <div class="topo-stat-val" id="t-shells">4</div>
+        <div class="topo-stat-label">Shells</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Event Feed -->
+  <div class="panel right-panel">
+    <div class="panel-header">
+      <span class="panel-title">Live Events</span>
+      <span class="panel-badge badge-active" id="event-count">0</span>
+    </div>
+    <div class="event-feed" id="event-feed"></div>
+  </div>
+
+  <!-- BOTTOM CENTER: Stability Timeline -->
+  <div class="panel bottom-panel">
+    <div class="panel-header">
+      <span class="panel-title">Stability Timeline</span>
+      <span class="panel-badge" style="color: var(--text-dim);">V(x) over time</span>
+    </div>
+    <canvas id="timeline-canvas"></canvas>
+  </div>
+
+</div>
+
+<script>
+// ─── Clock ───
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().split(' ')[0];
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── Mode Switcher ───
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// ─── Health Ring ───
+const healthCanvas = document.getElementById('health-canvas');
+const hCtx = healthCanvas.getContext('2d');
+let healthValue = 0.92;
+let healthTarget = 0.92;
+
+function drawHealthRing(t) {
+  const w = healthCanvas.width;
+  const h = healthCanvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = 110;
+  const lw = 8;
+
+  hCtx.clearRect(0, 0, w, h);
+
+  // Background ring
+  hCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+  hCtx.lineWidth = lw;
+  hCtx.lineCap = 'round';
+  hCtx.beginPath();
+  hCtx.arc(cx, cy, r, 0, Math.PI * 2);
+  hCtx.stroke();
+
+  // Animated health arc
+  healthValue += (healthTarget - healthValue) * 0.02;
+  const startAngle = -Math.PI / 2;
+  const endAngle = startAngle + Math.PI * 2 * healthValue;
+
+  const grad = hCtx.createConicGradient(startAngle, cx, cy);
+  grad.addColorStop(0, '#2ecc71');
+  grad.addColorStop(healthValue * 0.8, '#3cb4dc');
+  grad.addColorStop(healthValue, '#1a9e8f');
+
+  hCtx.strokeStyle = grad;
+  hCtx.lineWidth = lw;
+  hCtx.lineCap = 'round';
+  hCtx.beginPath();
+  hCtx.arc(cx, cy, r, startAngle, endAngle);
+  hCtx.stroke();
+
+  // Glow at tip
+  const tipX = cx + Math.cos(endAngle) * r;
+  const tipY = cy + Math.sin(endAngle) * r;
+  const pulse = Math.sin(t * 0.03) * 0.3 + 0.7;
+  const glow = hCtx.createRadialGradient(tipX, tipY, 0, tipX, tipY, 14);
+  glow.addColorStop(0, `rgba(60, 180, 220, ${0.5 * pulse})`);
+  glow.addColorStop(1, 'rgba(60, 180, 220, 0)');
+  hCtx.fillStyle = glow;
+  hCtx.beginPath();
+  hCtx.arc(tipX, tipY, 14, 0, Math.PI * 2);
+  hCtx.fill();
+
+  document.getElementById('health-pct').textContent = Math.round(healthValue * 100);
+}
+
+// ─── Topology Visualization ───
+const topoCanvas = document.getElementById('topology-canvas');
+const tCtx = topoCanvas.getContext('2d');
+
+// Generate graph nodes
+const shellColors = ['#2ecc71', '#3cb4dc', '#9b59b6', '#e67e22'];
+const shellNames = ['8D', '16D', '32D', '64D'];
+const shellRadii = [0, 0.15, 0.3, 0.45];
+
+const nodes = [];
+const edges = [];
+
+// Create nodes per shell
+function generateGraph() {
+  const counts = [4, 12, 28, 47]; // 91 total
+  let id = 0;
+
+  for (let s = 0; s < 4; s++) {
+    for (let i = 0; i < counts[s]; i++) {
+      const angle = (i / counts[s]) * Math.PI * 2 + Math.random() * 0.3;
+      const radius = shellRadii[s] + (Math.random() - 0.5) * 0.06;
+      nodes.push({
+        id: id++,
+        shell: s,
+        angle,
+        radius,
+        x: 0, y: 0,
+        size: s === 0 ? 4 : s === 1 ? 3 : 2,
+        pulseOffset: Math.random() * Math.PI * 2,
+        drift: (Math.random() - 0.5) * 0.001
+      });
+    }
+  }
+
+  // Create edges — connect nearby nodes
+  for (let i = 0; i < nodes.length; i++) {
+    // Connect within shell
+    const sameShell = nodes.filter(n => n.shell === nodes[i].shell && n.id !== nodes[i].id);
+    const closest = sameShell
+      .map(n => ({ n, d: Math.abs(n.angle - nodes[i].angle) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 2);
+
+    closest.forEach(c => {
+      if (!edges.find(e => (e.a === i && e.b === c.n.id) || (e.a === c.n.id && e.b === i))) {
+        edges.push({ a: i, b: c.n.id, strength: 0.3 + Math.random() * 0.5 });
+      }
+    });
+
+    // Cross-shell connections (fewer)
+    if (Math.random() < 0.15 && nodes[i].shell < 3) {
+      const nextShell = nodes.filter(n => n.shell === nodes[i].shell + 1);
+      if (nextShell.length) {
+        const target = nextShell[Math.floor(Math.random() * nextShell.length)];
+        edges.push({ a: i, b: target.id, strength: 0.1 + Math.random() * 0.3 });
+      }
+    }
+  }
+}
+
+generateGraph();
+
+let topoRotation = 0;
+
+function resizeTopoCanvas() {
+  const rect = topoCanvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  topoCanvas.width = rect.width * dpr;
+  topoCanvas.height = (rect.height - 44) * dpr;
+  topoCanvas.style.width = rect.width + 'px';
+  topoCanvas.style.height = (rect.height - 44) + 'px';
+  tCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawTopology(t) {
+  const w = topoCanvas.width / (window.devicePixelRatio || 1);
+  const h = topoCanvas.height / (window.devicePixelRatio || 1);
+  const cx = w / 2;
+  const cy = h / 2;
+  const scale = Math.min(w, h) * 0.85;
+
+  tCtx.clearRect(0, 0, w, h);
+
+  topoRotation += 0.003;
+
+  // Update node positions
+  for (const node of nodes) {
+    node.angle += node.drift;
+    const a = node.angle + topoRotation;
+    node.x = cx + Math.cos(a) * node.radius * scale;
+    node.y = cy + Math.sin(a) * node.radius * scale;
+  }
+
+  // Draw shell rings
+  for (let s = 0; s < 4; s++) {
+    if (s === 0) continue;
+    tCtx.strokeStyle = `rgba(60, 180, 220, 0.06)`;
+    tCtx.lineWidth = 1;
+    tCtx.beginPath();
+    tCtx.arc(cx, cy, shellRadii[s] * scale, 0, Math.PI * 2);
+    tCtx.stroke();
+
+    // Shell label
+    tCtx.font = '8px "IBM Plex Mono"';
+    tCtx.fillStyle = 'rgba(60, 180, 220, 0.2)';
+    tCtx.fillText(shellNames[s], cx + shellRadii[s] * scale + 6, cy - 4);
+  }
+
+  // Draw edges
+  for (const edge of edges) {
+    const a = nodes[edge.a];
+    const b = nodes[edge.b];
+    if (!a || !b) continue;
+
+    const alpha = edge.strength * 0.15;
+    const crossShell = a.shell !== b.shell;
+
+    tCtx.strokeStyle = crossShell
+      ? `rgba(155, 89, 182, ${alpha})`
+      : `rgba(60, 180, 220, ${alpha})`;
+    tCtx.lineWidth = crossShell ? 0.5 : 0.7;
+    tCtx.beginPath();
+    tCtx.moveTo(a.x, a.y);
+    tCtx.lineTo(b.x, b.y);
+    tCtx.stroke();
+  }
+
+  // Draw nodes
+  for (const node of nodes) {
+    const pulse = Math.sin(t * 0.02 + node.pulseOffset) * 0.3 + 0.7;
+    const color = shellColors[node.shell];
+    const rgb = hexToRgb(color);
+
+    // Glow
+    if (node.shell < 2) {
+      const grd = tCtx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.size * 4);
+      grd.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.2 * pulse})`);
+      grd.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+      tCtx.fillStyle = grd;
+      tCtx.beginPath();
+      tCtx.arc(node.x, node.y, node.size * 4, 0, Math.PI * 2);
+      tCtx.fill();
+    }
+
+    // Node dot
+    tCtx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.6 + pulse * 0.3})`;
+    tCtx.beginPath();
+    tCtx.arc(node.x, node.y, node.size * pulse, 0, Math.PI * 2);
+    tCtx.fill();
+  }
+
+  // Center label
+  tCtx.font = '9px "Space Grotesk"';
+  tCtx.fillStyle = 'rgba(46, 204, 113, 0.5)';
+  tCtx.textAlign = 'center';
+  tCtx.fillText('IDENTITY', cx, cy + 4);
+  tCtx.textAlign = 'left';
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return { r, g, b };
+}
+
+// ─── Stability Timeline ───
+const tlCanvas = document.getElementById('timeline-canvas');
+const tlCtx = tlCanvas.getContext('2d');
+const stabilityHistory = [];
+const maxHistory = 300;
+
+function resizeTimelineCanvas() {
+  const rect = tlCanvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  tlCanvas.width = rect.width * dpr;
+  tlCanvas.height = (rect.height - 44) * dpr;
+  tlCanvas.style.width = rect.width + 'px';
+  tlCanvas.style.height = (rect.height - 44) + 'px';
+  tlCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawTimeline(t) {
+  const w = tlCanvas.width / (window.devicePixelRatio || 1);
+  const h = tlCanvas.height / (window.devicePixelRatio || 1);
+  const pad = { top: 20, right: 20, bottom: 30, left: 50 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  tlCtx.clearRect(0, 0, w, h);
+
+  // Generate new data point
+  const noise = (Math.random() - 0.5) * 0.008;
+  const base = 0.124 * Math.exp(-t * 0.0002) + 0.02;
+  const spike = Math.random() < 0.005 ? 0.05 : 0;
+  stabilityHistory.push(Math.max(0.01, base + noise + spike));
+  if (stabilityHistory.length > maxHistory) stabilityHistory.shift();
+
+  // Axes
+  tlCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+  tlCtx.lineWidth = 1;
+  tlCtx.beginPath();
+  tlCtx.moveTo(pad.left, pad.top);
+  tlCtx.lineTo(pad.left, pad.top + plotH);
+  tlCtx.lineTo(pad.left + plotW, pad.top + plotH);
+  tlCtx.stroke();
+
+  // Y-axis labels
+  tlCtx.font = '8px "IBM Plex Mono"';
+  tlCtx.fillStyle = 'rgba(200, 214, 229, 0.3)';
+  tlCtx.textAlign = 'right';
+  for (let v = 0; v <= 0.2; v += 0.05) {
+    const y = pad.top + plotH - (v / 0.2) * plotH;
+    tlCtx.fillText(v.toFixed(2), pad.left - 6, y + 3);
+
+    tlCtx.strokeStyle = 'rgba(255,255,255,0.03)';
+    tlCtx.beginPath();
+    tlCtx.moveTo(pad.left, y);
+    tlCtx.lineTo(pad.left + plotW, y);
+    tlCtx.stroke();
+  }
+  tlCtx.textAlign = 'left';
+
+  // X-axis label
+  tlCtx.fillStyle = 'rgba(200, 214, 229, 0.2)';
+  tlCtx.textAlign = 'center';
+  tlCtx.fillText('time (t)', pad.left + plotW / 2, pad.top + plotH + 20);
+  tlCtx.textAlign = 'left';
+
+  // Y label
+  tlCtx.save();
+  tlCtx.translate(14, pad.top + plotH / 2);
+  tlCtx.rotate(-Math.PI / 2);
+  tlCtx.fillStyle = 'rgba(200, 214, 229, 0.2)';
+  tlCtx.textAlign = 'center';
+  tlCtx.fillText('V(x)', 0, 0);
+  tlCtx.restore();
+
+  // Threshold line
+  const thresholdY = pad.top + plotH - (0.05 / 0.2) * plotH;
+  tlCtx.strokeStyle = 'rgba(46, 204, 113, 0.2)';
+  tlCtx.setLineDash([4, 4]);
+  tlCtx.beginPath();
+  tlCtx.moveTo(pad.left, thresholdY);
+  tlCtx.lineTo(pad.left + plotW, thresholdY);
+  tlCtx.stroke();
+  tlCtx.setLineDash([]);
+
+  tlCtx.font = '7px "IBM Plex Mono"';
+  tlCtx.fillStyle = 'rgba(46, 204, 113, 0.35)';
+  tlCtx.fillText('M* threshold', pad.left + plotW - 65, thresholdY - 4);
+
+  // Data line
+  if (stabilityHistory.length > 1) {
+    // Gradient fill under line
+    const fillGrad = tlCtx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+    fillGrad.addColorStop(0, 'rgba(60, 180, 220, 0.08)');
+    fillGrad.addColorStop(1, 'rgba(60, 180, 220, 0)');
+
+    tlCtx.fillStyle = fillGrad;
+    tlCtx.beginPath();
+    tlCtx.moveTo(pad.left, pad.top + plotH);
+
+    for (let i = 0; i < stabilityHistory.length; i++) {
+      const x = pad.left + (i / maxHistory) * plotW;
+      const y = pad.top + plotH - (stabilityHistory[i] / 0.2) * plotH;
+      tlCtx.lineTo(x, y);
+    }
+    tlCtx.lineTo(pad.left + ((stabilityHistory.length - 1) / maxHistory) * plotW, pad.top + plotH);
+    tlCtx.fill();
+
+    // Line
+    tlCtx.strokeStyle = 'rgba(60, 180, 220, 0.7)';
+    tlCtx.lineWidth = 1.5;
+    tlCtx.beginPath();
+    for (let i = 0; i < stabilityHistory.length; i++) {
+      const x = pad.left + (i / maxHistory) * plotW;
+      const y = pad.top + plotH - (stabilityHistory[i] / 0.2) * plotH;
+      if (i === 0) tlCtx.moveTo(x, y);
+      else tlCtx.lineTo(x, y);
+    }
+    tlCtx.stroke();
+
+    // Current value dot
+    const lastX = pad.left + ((stabilityHistory.length - 1) / maxHistory) * plotW;
+    const lastY = pad.top + plotH - (stabilityHistory[stabilityHistory.length - 1] / 0.2) * plotH;
+    const pulse = Math.sin(t * 0.05) * 0.3 + 0.7;
+
+    const dotGlow = tlCtx.createRadialGradient(lastX, lastY, 0, lastX, lastY, 10);
+    dotGlow.addColorStop(0, `rgba(60, 180, 220, ${0.4 * pulse})`);
+    dotGlow.addColorStop(1, 'rgba(60, 180, 220, 0)');
+    tlCtx.fillStyle = dotGlow;
+    tlCtx.beginPath();
+    tlCtx.arc(lastX, lastY, 10, 0, Math.PI * 2);
+    tlCtx.fill();
+
+    tlCtx.fillStyle = '#3cb4dc';
+    tlCtx.beginPath();
+    tlCtx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+    tlCtx.fill();
+  }
+}
+
+// ─── Event Feed ───
+const eventTypes = [
+  { type: 'monitor', cls: 'type-monitor', msgs: [
+    'Hash integrity check passed (21/21)',
+    'Staleness scan complete — 0 alerts',
+    'Contradiction scan — 0 found',
+    'Eval suite passed (12/12)',
+    'Memory coherence: 0.81',
+    'Orphan detection: 0 orphans',
+    'MAPE-K cycle complete'
+  ]},
+  { type: 'repair', cls: 'type-repair', msgs: [
+    'Stale hash updated: current-state.md',
+    'Citation link repaired: build-log.md',
+    'Orphan reference removed',
+    'Hash registry synchronized',
+    'Weight decay applied (3 edges)'
+  ]},
+  { type: 'learn', cls: 'type-learn', msgs: [
+    'Hebbian weight updated: [VS] <-> [BUILDS]',
+    'Co-occurrence logged: task <-> context',
+    'Skill candidate detected: spiral convergence',
+    'Reflexion quarantine: empty (clean)',
+    'Pattern motif promoted to local anchor'
+  ]},
+  { type: 'gate', cls: 'type-gate', msgs: [
+    'Scope Gate check: PASS',
+    'Rate limit: 0/5 wiki writes used',
+    'Citation coverage: 94%',
+    'Drift control: no violations',
+    'Constitutional check: aligned'
+  ]},
+  { type: 'alert', cls: 'type-alert', msgs: [
+    'Contradiction spike detected — circuit breaker standby',
+    'Hallucination proximity: 0.73 (watch)',
+    'Uncertainty field expanding in sector 3'
+  ]}
+];
+
+let eventCount = 0;
+const eventFeed = document.getElementById('event-feed');
+
+function addEvent() {
+  // Weight toward non-alert events
+  const weights = [0.35, 0.2, 0.2, 0.2, 0.05];
+  let r = Math.random();
+  let typeIdx = 0;
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) { typeIdx = i; break; }
+  }
+
+  const et = eventTypes[typeIdx];
+  const msg = et.msgs[Math.floor(Math.random() * et.msgs.length)];
+  const now = new Date();
+  const timeStr = now.toTimeString().split(' ')[0];
+
+  const div = document.createElement('div');
+  div.className = 'event-item';
+  div.innerHTML = `
+    <span class="event-time">${timeStr}</span>
+    <span class="event-type ${et.cls}">${et.type}</span>
+    <div class="event-msg">${msg}</div>
+  `;
+
+  eventFeed.insertBefore(div, eventFeed.firstChild);
+  eventCount++;
+  document.getElementById('event-count').textContent = eventCount;
+
+  // Keep feed manageable
+  while (eventFeed.children.length > 50) {
+    eventFeed.removeChild(eventFeed.lastChild);
+  }
+}
+
+// Seed initial events
+for (let i = 0; i < 8; i++) addEvent();
+
+// Add events at random intervals
+function scheduleNextEvent() {
+  const delay = 2000 + Math.random() * 5000;
+  setTimeout(() => {
+    addEvent();
+    scheduleNextEvent();
+  }, delay);
+}
+scheduleNextEvent();
+
+// ─── Metric Fluctuation ───
+function fluctuateMetrics(t) {
+  const vx = 0.124 * Math.exp(-t * 0.0001) + 0.02 + (Math.random() - 0.5) * 0.005;
+  const dv = -0.037 + (Math.random() - 0.5) * 0.01;
+  const contra = Math.random() < 0.02 ? Math.floor(Math.random() * 7) + 1 : 3;
+  const repairs = Math.random() < 0.03 ? Math.floor(Math.random() * 4) : 1;
+  const cohere = 0.81 + (Math.random() - 0.5) * 0.03;
+
+  document.getElementById('m-vx').textContent = vx.toFixed(3);
+  document.getElementById('m-dv').textContent = (dv < 0 ? '\u2212' : '+') + Math.abs(dv).toFixed(3);
+  document.getElementById('m-cohere').textContent = cohere.toFixed(2);
+  document.getElementById('m-contra').textContent = contra;
+  document.getElementById('m-repairs').textContent = repairs;
+
+  // Occasional health fluctuation
+  if (Math.random() < 0.02) {
+    healthTarget = 0.88 + Math.random() * 0.1;
+  }
+}
+
+// ─── Main Loop ───
+let frame = 0;
+
+function init() {
+  resizeTopoCanvas();
+  resizeTimelineCanvas();
+}
+
+function animate() {
+  frame++;
+  drawHealthRing(frame);
+  drawTopology(frame);
+  drawTimeline(frame);
+
+  if (frame % 60 === 0) fluctuateMetrics(frame);
+
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize', () => {
+  resizeTopoCanvas();
+  resizeTimelineCanvas();
+});
+
+init();
+animate();
+</script>
+</body>
+</html>

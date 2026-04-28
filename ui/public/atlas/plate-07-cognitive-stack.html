@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — Cognitive Stack</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308; --bg-panel: rgba(8, 12, 24, 0.88);
+    --border: rgba(60, 180, 220, 0.12); --cyan: #3cb4dc;
+    --green: #2ecc71; --red: #e74c3c; --orange: #e67e22;
+    --gold: #C9A227; --purple: #9b59b6; --teal: #1a9e8f;
+    --text: #c8d6e5; --text-dim: rgba(200, 214, 229, 0.45);
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); overflow-x: hidden; min-height: 100vh; }
+
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; height: 44px;
+    display: flex; align-items: center; padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel); backdrop-filter: blur(16px); z-index: 200;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--cyan); }
+  .plate-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .stack-container {
+    padding: 70px 40px 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* Flow arrows between layers */
+  .flow-arrows {
+    position: fixed;
+    left: 60px;
+    top: 80px;
+    bottom: 40px;
+    width: 30px;
+    z-index: 10;
+  }
+
+  .flow-label {
+    position: fixed;
+    font-size: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  /* Layer */
+  .layer {
+    display: grid;
+    grid-template-columns: 60px 1fr 200px;
+    gap: 0;
+    margin-bottom: 2px;
+    position: relative;
+    transition: all 0.3s;
+  }
+
+  .layer:hover {
+    transform: translateX(4px);
+  }
+
+  .layer-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 300;
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+  }
+
+  .layer-body {
+    padding: 16px 24px;
+    border-right: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .layer-body::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    transition: opacity 0.3s;
+  }
+
+  .layer:hover .layer-body::before { opacity: 1; }
+
+  .layer-name {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .layer-desc {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .layer-io {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .io-item {
+    font-size: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .io-arrow-in { color: var(--teal); }
+  .io-arrow-out { color: var(--gold); }
+
+  .layer-activity {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 3px;
+    animation: layer-pulse 3s ease infinite;
+  }
+
+  @keyframes layer-pulse {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 0.8; }
+  }
+
+  /* Feedback channels */
+  .feedback-overlay {
+    position: fixed;
+    right: 40px;
+    top: 80px;
+    width: 40px;
+    bottom: 40px;
+    z-index: 10;
+  }
+
+  .fb-label {
+    position: fixed;
+    right: 25px;
+    font-size: 8px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+    color: var(--orange);
+    opacity: 0.3;
+  }
+
+  /* Canvas for animated elements */
+  #flow-canvas {
+    position: fixed;
+    top: 44px; left: 0;
+    width: 100%; height: calc(100vh - 44px);
+    pointer-events: none;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate I — Fractal Memory Cognitive Stack</span>
+  </div>
+</div>
+
+<canvas id="flow-canvas"></canvas>
+
+<div class="stack-container">
+
+  <!-- Layer 8 (top) -->
+  <div class="layer" style="background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.1);">
+    <div class="layer-num" style="color: rgba(155, 89, 182, 0.4);">8</div>
+    <div class="layer-body">
+      <div class="layer-body" style="padding: 0;"></div>
+      <div class="layer-name" style="color: var(--purple);">Oracle Meta-Cognition</div>
+      <div class="layer-desc">Cognition about cognition. Monitors reasoning quality, detects blind spots, triggers self-correction. The layer that knows what it doesn't know.</div>
+      <div class="layer-activity" style="background: var(--purple);"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> self-model state</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> meta-corrections</div>
+    </div>
+  </div>
+
+  <!-- Layer 7 -->
+  <div class="layer" style="background: rgba(201, 162, 39, 0.03); border: 1px solid rgba(201, 162, 39, 0.1);">
+    <div class="layer-num" style="color: rgba(201, 162, 39, 0.4);">7</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--gold);">Governance Kernel (MPC)</div>
+      <div class="layer-desc">Model Predictive Control over reasoning futures. Plans multi-step trajectories, optimizes for truth under constraints. The executive controller.</div>
+      <div class="layer-activity" style="background: var(--gold); animation-delay: 0.3s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> stability signal</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> control actions</div>
+    </div>
+  </div>
+
+  <!-- Layer 6 -->
+  <div class="layer" style="background: rgba(60, 180, 220, 0.03); border: 1px solid rgba(60, 180, 220, 0.08);">
+    <div class="layer-num" style="color: rgba(60, 180, 220, 0.4);">6</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--cyan);">Self-Model Observer</div>
+      <div class="layer-desc">Kalman-style state estimation of the system's own cognitive state. Tracks uncertainty, drift, capability boundaries. The mirror.</div>
+      <div class="layer-activity" style="background: var(--cyan); animation-delay: 0.6s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> all layer outputs</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> state estimate x&#770;</div>
+    </div>
+  </div>
+
+  <!-- Layer 5 -->
+  <div class="layer" style="background: rgba(46, 204, 113, 0.03); border: 1px solid rgba(46, 204, 113, 0.08);">
+    <div class="layer-num" style="color: rgba(46, 204, 113, 0.4);">5</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--green);">Repair Immune Layer</div>
+      <div class="layer-desc">MAPE-K repair cycle. Detects contradictions, quarantines corrupted beliefs, executes surgical repairs. The immune system.</div>
+      <div class="layer-activity" style="background: var(--green); animation-delay: 0.9s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> contradiction signals</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> repair operations</div>
+    </div>
+  </div>
+
+  <!-- Layer 4 -->
+  <div class="layer" style="background: rgba(231, 76, 60, 0.03); border: 1px solid rgba(231, 76, 60, 0.08);">
+    <div class="layer-num" style="color: rgba(231, 76, 60, 0.4);">4</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--red);">Verification / Falsification</div>
+      <div class="layer-desc">Tests beliefs against evidence. Seeks disconfirmation, not confirmation. Every claim must survive adversarial challenge.</div>
+      <div class="layer-activity" style="background: var(--red); animation-delay: 1.2s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> belief candidates</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> verified / rejected</div>
+    </div>
+  </div>
+
+  <!-- Layer 3 -->
+  <div class="layer" style="background: rgba(230, 126, 34, 0.03); border: 1px solid rgba(230, 126, 34, 0.08);">
+    <div class="layer-num" style="color: rgba(230, 126, 34, 0.4);">3</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--orange);">Belief Propagation Engine</div>
+      <div class="layer-desc">Factor graph message passing. Updates belief distributions across the network. Propagates evidence, contains contradictions.</div>
+      <div class="layer-activity" style="background: var(--orange); animation-delay: 1.5s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> new evidence</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> updated beliefs</div>
+    </div>
+  </div>
+
+  <!-- Layer 2 -->
+  <div class="layer" style="background: rgba(60, 180, 220, 0.03); border: 1px solid rgba(60, 180, 220, 0.06);">
+    <div class="layer-num" style="color: rgba(60, 180, 220, 0.35);">2</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--cyan);">Retrieval Cortex</div>
+      <div class="layer-desc">5-channel adaptive retrieval gating. Decides what to remember, what to load, what to suppress. Context as computation.</div>
+      <div class="layer-activity" style="background: var(--cyan); animation-delay: 1.8s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> query signal</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> retrieved context</div>
+    </div>
+  </div>
+
+  <!-- Layer 1 -->
+  <div class="layer" style="background: rgba(26, 158, 143, 0.03); border: 1px solid rgba(26, 158, 143, 0.08);">
+    <div class="layer-num" style="color: rgba(26, 158, 143, 0.35);">1</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: var(--teal);">Fractal Memory Graph</div>
+      <div class="layer-desc">Toroidal topology. 4 dimensional shells (8D/16D/32D/64D). Hebbian learning, shell graduation, age-weighted decay. The substrate.</div>
+      <div class="layer-activity" style="background: var(--teal); animation-delay: 2.1s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item io-arrow-in"><span style="color: var(--teal);">&larr;</span> write operations</div>
+      <div class="io-item io-arrow-out"><span style="color: var(--gold);">&rarr;</span> stored knowledge</div>
+    </div>
+  </div>
+
+  <!-- Layer 0 -->
+  <div class="layer" style="background: rgba(200, 214, 229, 0.02); border: 1px solid rgba(200, 214, 229, 0.06);">
+    <div class="layer-num" style="color: rgba(200, 214, 229, 0.25);">0</div>
+    <div class="layer-body">
+      <div class="layer-name" style="color: rgba(200, 214, 229, 0.6);">Immutable Truth Substrate</div>
+      <div class="layer-desc">Identity axioms (CLAUDE.md / 8D shell). Never overwritten by session context. The bedrock everything else is built on.</div>
+      <div class="layer-activity" style="background: rgba(200, 214, 229, 0.3); animation-delay: 2.4s;"></div>
+    </div>
+    <div class="layer-io">
+      <div class="io-item" style="color: rgba(200, 214, 229, 0.25); font-size: 7px;">IMMUTABLE</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Animated flow particles along the left side
+const flowCanvas = document.getElementById('flow-canvas');
+const fCtx = flowCanvas.getContext('2d');
+let time = 0;
+
+function resizeFlow() {
+  const dpr = window.devicePixelRatio || 1;
+  flowCanvas.width = window.innerWidth * dpr;
+  flowCanvas.height = (window.innerHeight - 44) * dpr;
+  flowCanvas.style.width = window.innerWidth + 'px';
+  flowCanvas.style.height = (window.innerHeight - 44) + 'px';
+  fCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// Top-down constraint particles (left channel)
+const downParticles = [];
+// Bottom-up feedback particles (right channel)
+const upParticles = [];
+
+function spawnParticle(arr, x, startY, endY, color, speed) {
+  arr.push({
+    x: x + (Math.random() - 0.5) * 6,
+    y: startY,
+    endY,
+    speed,
+    color,
+    alpha: 0,
+    size: 1.5
+  });
+}
+
+function updateParticles(arr, direction) {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const p = arr[i];
+    p.y += direction * p.speed;
+    p.alpha = Math.min(0.6, p.alpha + 0.02);
+
+    if ((direction > 0 && p.y > p.endY) || (direction < 0 && p.y < p.endY)) {
+      arr.splice(i, 1);
+    }
+  }
+}
+
+function drawFlowParticles(arr) {
+  for (const p of arr) {
+    const grd = fCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 4);
+    grd.addColorStop(0, p.color.replace(')', `, ${p.alpha})`).replace('rgb', 'rgba'));
+    grd.addColorStop(1, p.color.replace(')', ', 0)').replace('rgb', 'rgba'));
+    fCtx.fillStyle = grd;
+    fCtx.beginPath();
+    fCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    fCtx.fill();
+
+    fCtx.fillStyle = p.color.replace(')', `, ${p.alpha})`).replace('rgb', 'rgba');
+    fCtx.beginPath();
+    fCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    fCtx.fill();
+  }
+}
+
+// Flow channels
+const leftX = 30;
+const rightX = window.innerWidth - 30;
+const topY = 40;
+const bottomY = window.innerHeight - 80;
+
+function renderFlow() {
+  time++;
+  const w = flowCanvas.width / (window.devicePixelRatio || 1);
+  const h = flowCanvas.height / (window.devicePixelRatio || 1);
+  fCtx.clearRect(0, 0, w, h);
+
+  // Spawn down particles (constraints)
+  if (time % 12 === 0) {
+    spawnParticle(downParticles, 25, 0, h, 'rgb(60, 180, 220)', 1.5 + Math.random());
+  }
+
+  // Spawn up particles (feedback)
+  if (time % 18 === 0) {
+    spawnParticle(upParticles, w - 25, h, 0, 'rgb(230, 126, 34)', 1.2 + Math.random() * 0.8);
+  }
+
+  updateParticles(downParticles, 1);
+  updateParticles(upParticles, -1);
+  drawFlowParticles(downParticles);
+  drawFlowParticles(upParticles);
+
+  // Channel lines
+  fCtx.strokeStyle = 'rgba(60, 180, 220, 0.06)';
+  fCtx.lineWidth = 1;
+  fCtx.beginPath();
+  fCtx.moveTo(25, 0);
+  fCtx.lineTo(25, h);
+  fCtx.stroke();
+
+  fCtx.strokeStyle = 'rgba(230, 126, 34, 0.06)';
+  fCtx.beginPath();
+  fCtx.moveTo(w - 25, 0);
+  fCtx.lineTo(w - 25, h);
+  fCtx.stroke();
+
+  // Labels
+  fCtx.save();
+  fCtx.font = '7px "IBM Plex Mono"';
+
+  fCtx.translate(15, h / 2);
+  fCtx.rotate(-Math.PI / 2);
+  fCtx.fillStyle = 'rgba(60, 180, 220, 0.2)';
+  fCtx.textAlign = 'center';
+  fCtx.fillText('TOP-DOWN CONSTRAINTS', 0, 0);
+  fCtx.restore();
+
+  fCtx.save();
+  fCtx.translate(w - 15, h / 2);
+  fCtx.rotate(Math.PI / 2);
+  fCtx.fillStyle = 'rgba(230, 126, 34, 0.2)';
+  fCtx.textAlign = 'center';
+  fCtx.fillText('BOTTOM-UP FEEDBACK', 0, 0);
+  fCtx.restore();
+
+  requestAnimationFrame(renderFlow);
+}
+
+window.addEventListener('resize', resizeFlow);
+resizeFlow();
+renderFlow();
+</script>
+</body>
+</html>

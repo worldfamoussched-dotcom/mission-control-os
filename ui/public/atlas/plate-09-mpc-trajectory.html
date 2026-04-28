@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — MPC Reasoning Trajectory Simulator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308; --bg-panel: rgba(8, 12, 24, 0.88);
+    --border: rgba(60, 180, 220, 0.12); --cyan: #3cb4dc;
+    --green: #2ecc71; --red: #e74c3c; --orange: #e67e22;
+    --gold: #C9A227; --purple: #9b59b6; --teal: #1a9e8f;
+    --text: #c8d6e5; --text-dim: rgba(200, 214, 229, 0.45);
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); overflow: hidden; height: 100vh; width: 100vw; }
+
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; height: 44px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid var(--border);
+    background: var(--bg-panel); backdrop-filter: blur(16px); z-index: 200;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--cyan); }
+  .plate-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  #main-canvas { position: fixed; top: 44px; left: 0; width: 100%; height: calc(100vh - 44px); }
+
+  /* Constraints Panel */
+  .constraints {
+    position: fixed; top: 68px; left: 20px; width: 200px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; backdrop-filter: blur(12px); z-index: 50;
+  }
+  .constraints h3 {
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--cyan);
+    margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .constraint-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; font-size: 10px;
+  }
+  .constraint-check { font-size: 12px; }
+  .check-pass { color: var(--green); }
+  .check-fail { color: var(--red); }
+  .check-warn { color: var(--orange); }
+
+  /* Outcomes Panel */
+  .outcomes {
+    position: fixed; top: 68px; right: 20px; width: 220px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; backdrop-filter: blur(12px); z-index: 50;
+  }
+  .outcomes h3 {
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--cyan);
+    margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+
+  .outcome-card {
+    padding: 8px 10px; margin-bottom: 6px;
+    border-radius: 5px; border: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+
+  .outcome-card.optimal {
+    border-color: rgba(46, 204, 113, 0.3);
+    background: rgba(46, 204, 113, 0.04);
+  }
+  .outcome-card.acceptable {
+    border-color: rgba(60, 180, 220, 0.2);
+    background: rgba(60, 180, 220, 0.03);
+  }
+  .outcome-card.risky {
+    border-color: rgba(230, 126, 34, 0.2);
+    background: rgba(230, 126, 34, 0.03);
+  }
+  .outcome-card.unstable {
+    border-color: rgba(231, 76, 60, 0.2);
+    background: rgba(231, 76, 60, 0.03);
+  }
+
+  .outcome-label {
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    font-weight: 500; margin-bottom: 4px;
+  }
+  .outcome-metrics {
+    font-size: 8px; color: var(--text-dim); line-height: 1.6;
+  }
+
+  .active-path {
+    animation: glow-border 2s ease infinite;
+  }
+  @keyframes glow-border {
+    0%,100% { box-shadow: 0 0 0 rgba(46, 204, 113, 0); }
+    50% { box-shadow: 0 0 8px rgba(46, 204, 113, 0.15); }
+  }
+
+  /* Optimization Target */
+  .objective {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 20px; backdrop-filter: blur(12px);
+    z-index: 50; font-size: 10px; color: rgba(60, 180, 220, 0.4);
+    text-align: center;
+  }
+  .objective em { color: var(--cyan); font-style: normal; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate IX — MPC Reasoning Trajectory Simulator</span>
+  </div>
+</div>
+
+<canvas id="main-canvas"></canvas>
+
+<div class="constraints">
+  <h3>Active Constraints</h3>
+  <div class="constraint-row">
+    <span>Citation Required</span>
+    <span class="constraint-check check-pass" id="c-cite">&#10003;</span>
+  </div>
+  <div class="constraint-row">
+    <span>Risk &lt; &epsilon;</span>
+    <span class="constraint-check check-pass" id="c-risk">&#10003;</span>
+  </div>
+  <div class="constraint-row">
+    <span>&Delta;V &lt; 0</span>
+    <span class="constraint-check check-pass" id="c-dv">&#10003;</span>
+  </div>
+  <div class="constraint-row">
+    <span>Quorum Safety</span>
+    <span class="constraint-check check-pass" id="c-quorum">&#10003;</span>
+  </div>
+  <div class="constraint-row">
+    <span>Scope Gate</span>
+    <span class="constraint-check check-pass" id="c-scope">&#10003;</span>
+  </div>
+  <div class="constraint-row">
+    <span>Memory Integrity</span>
+    <span class="constraint-check check-pass" id="c-memory">&#10003;</span>
+  </div>
+</div>
+
+<div class="outcomes">
+  <h3>Predicted Outcomes</h3>
+  <div class="outcome-card optimal active-path" id="out-optimal">
+    <div class="outcome-label" style="color: var(--green);">Optimal Path</div>
+    <div class="outcome-metrics">
+      Truth: <span id="o1-truth">0.94</span> | Risk: <span id="o1-risk">0.08</span><br>
+      &Delta;V: <span id="o1-dv">&minus;0.041</span> | P: <span id="o1-prob">0.72</span>
+    </div>
+  </div>
+  <div class="outcome-card acceptable" id="out-accept">
+    <div class="outcome-label" style="color: var(--cyan);">Acceptable</div>
+    <div class="outcome-metrics">
+      Truth: <span id="o2-truth">0.81</span> | Risk: <span id="o2-risk">0.22</span><br>
+      &Delta;V: <span id="o2-dv">&minus;0.012</span> | P: <span id="o2-prob">0.18</span>
+    </div>
+  </div>
+  <div class="outcome-card risky">
+    <div class="outcome-label" style="color: var(--orange);">Risky</div>
+    <div class="outcome-metrics">
+      Truth: <span id="o3-truth">0.53</span> | Risk: <span id="o3-risk">0.61</span><br>
+      &Delta;V: <span id="o3-dv">+0.024</span> | P: <span id="o3-prob">0.08</span>
+    </div>
+  </div>
+  <div class="outcome-card unstable">
+    <div class="outcome-label" style="color: var(--red);">Unstable</div>
+    <div class="outcome-metrics">
+      Truth: <span id="o4-truth">0.21</span> | Risk: <span id="o4-risk">0.89</span><br>
+      &Delta;V: <span id="o4-dv">+0.15</span> | P: <span id="o4-prob">0.02</span>
+    </div>
+  </div>
+</div>
+
+<div class="objective">
+  minimize: <em>J</em> = &Sigma; [w<sub>r</sub>&middot;risk(t) &minus; w<sub>t</sub>&middot;truth(t) + w<sub>s</sub>&middot;&Delta;V(t)]<br>
+  subject to: citations, quorum, scope gate, &Delta;V &lt; 0
+</div>
+
+<script>
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy, time = 0;
+
+// Tree structure
+const rootX = 0.15;
+const rootY = 0.5;
+const horizonLength = 0.6;
+
+// 4 trajectory branches
+const branches = [
+  {
+    name: 'optimal',
+    color: { r: 46, g: 204, b: 113 },
+    endY: 0.35,
+    curve: -0.08,
+    width: 3,
+    alpha: 0.7,
+    particles: [],
+    glow: true
+  },
+  {
+    name: 'acceptable',
+    color: { r: 60, g: 180, b: 220 },
+    endY: 0.48,
+    curve: -0.03,
+    width: 2,
+    alpha: 0.4,
+    particles: [],
+    glow: false
+  },
+  {
+    name: 'risky',
+    color: { r: 230, g: 126, b: 34 },
+    endY: 0.62,
+    curve: 0.05,
+    width: 1.5,
+    alpha: 0.3,
+    particles: [],
+    glow: false
+  },
+  {
+    name: 'unstable',
+    color: { r: 231, g: 76, b: 60 },
+    endY: 0.78,
+    curve: 0.15,
+    width: 1,
+    alpha: 0.2,
+    particles: [],
+    glow: false
+  }
+];
+
+// Decision nodes along optimal path
+const decisions = [
+  { t: 0.25, label: 'Retrieve' },
+  { t: 0.45, label: 'Verify' },
+  { t: 0.65, label: 'Commit' },
+  { t: 0.85, label: 'Validate' }
+];
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight - 44;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = W / 2; cy = H / 2;
+}
+
+function branchPath(branch, t) {
+  const startX = rootX * W;
+  const startY = rootY * H;
+  const endX = (rootX + horizonLength) * W;
+  const endY = branch.endY * H;
+
+  const x = startX + (endX - startX) * t;
+
+  // Curved path with slight noise
+  const baseY = startY + (endY - startY) * t;
+  const curveOffset = Math.sin(t * Math.PI) * branch.curve * H;
+  const noise = Math.sin(t * 10 + time * 0.01 + branches.indexOf(branch)) * 3;
+  const y = baseY + curveOffset + noise;
+
+  return { x, y };
+}
+
+function drawHorizonGrid() {
+  const startX = rootX * W;
+  const endX = (rootX + horizonLength) * W;
+
+  // Vertical time markers
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(200, 214, 229, 0.15)';
+  ctx.textAlign = 'center';
+
+  for (let i = 0; i <= 4; i++) {
+    const x = startX + (endX - startX) * (i / 4);
+    ctx.strokeStyle = 'rgba(60, 180, 220, 0.04)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 60);
+    ctx.lineTo(x, H - 40);
+    ctx.stroke();
+
+    ctx.fillText(`t+${i}`, x, H - 25);
+  }
+
+  // Horizon label
+  ctx.font = '9px "Space Grotesk"';
+  ctx.fillStyle = 'rgba(60, 180, 220, 0.2)';
+  ctx.fillText('REASONING HORIZON', (startX + endX) / 2, 50);
+  ctx.textAlign = 'left';
+
+  // Risk axis (right side)
+  ctx.save();
+  ctx.translate(endX + 30, cy);
+  ctx.rotate(Math.PI / 2);
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(200, 214, 229, 0.15)';
+  ctx.textAlign = 'center';
+  ctx.fillText('risk \u2192', 0, 0);
+  ctx.restore();
+
+  // Truth axis (left side label)
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(200, 214, 229, 0.15)';
+  ctx.save();
+  ctx.translate(startX - 20, cy);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('\u2190 truth', 0, 0);
+  ctx.restore();
+}
+
+function drawBranches() {
+  for (const branch of branches) {
+    const c = branch.color;
+    const steps = 80;
+
+    // Glow tube for optimal path
+    if (branch.glow) {
+      ctx.strokeStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.08)`;
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const p = branchPath(branch, t);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+
+    // Main line
+    ctx.strokeStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${branch.alpha})`;
+    ctx.lineWidth = branch.width;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const p = branchPath(branch, t);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+
+    // Branch endpoint
+    const endP = branchPath(branch, 1);
+    const pulse = Math.sin(time * 0.03 + branches.indexOf(branch)) * 0.2 + 0.8;
+
+    const grd = ctx.createRadialGradient(endP.x, endP.y, 0, endP.x, endP.y, 12);
+    grd.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${0.2 * pulse})`);
+    grd.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(endP.x, endP.y, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${0.5 + pulse * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(endP.x, endP.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Endpoint label
+    ctx.font = '8px "Space Grotesk"';
+    ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.5)`;
+    ctx.textAlign = 'left';
+    ctx.fillText(branch.name.toUpperCase(), endP.x + 10, endP.y + 4);
+  }
+}
+
+// Root node
+function drawRoot() {
+  const x = rootX * W;
+  const y = rootY * H;
+  const pulse = Math.sin(time * 0.025) * 0.2 + 0.8;
+
+  // Concentric rings
+  for (let i = 3; i >= 1; i--) {
+    const r = 10 + i * 6;
+    ctx.strokeStyle = `rgba(60, 180, 220, ${0.08 / i})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const grd = ctx.createRadialGradient(x, y, 0, x, y, 20);
+  grd.addColorStop(0, `rgba(60, 180, 220, ${0.3 * pulse})`);
+  grd.addColorStop(1, 'rgba(60, 180, 220, 0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(x, y, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#3cb4dc';
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.font = '9px "Space Grotesk"';
+  ctx.fillStyle = 'rgba(60, 180, 220, 0.6)';
+  ctx.textAlign = 'center';
+  ctx.fillText('CURRENT', x, y - 20);
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(60, 180, 220, 0.3)';
+  ctx.fillText('M\u209C', x, y - 10);
+  ctx.textAlign = 'left';
+}
+
+// Decision nodes on optimal path
+function drawDecisions() {
+  const optimal = branches[0];
+
+  for (const dec of decisions) {
+    const p = branchPath(optimal, dec.t);
+    const pulse = Math.sin(time * 0.03 + dec.t * 5) * 0.2 + 0.8;
+
+    // Diamond shape
+    const s = 5;
+    ctx.fillStyle = `rgba(46, 204, 113, ${0.4 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - s);
+    ctx.lineTo(p.x + s, p.y);
+    ctx.lineTo(p.x, p.y + s);
+    ctx.lineTo(p.x - s, p.y);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(46, 204, 113, ${0.3 * pulse})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Label
+    ctx.font = '7px "IBM Plex Mono"';
+    ctx.fillStyle = 'rgba(46, 204, 113, 0.35)';
+    ctx.textAlign = 'center';
+    ctx.fillText(dec.label, p.x, p.y - 10);
+    ctx.textAlign = 'left';
+  }
+}
+
+// Trajectory particles
+function updateTrajectoryParticles() {
+  for (const branch of branches) {
+    // Spawn
+    if (time % 8 === 0 && Math.random() < (branch.glow ? 0.5 : 0.15)) {
+      branch.particles.push({
+        t: 0,
+        speed: 0.003 + Math.random() * 0.004
+      });
+    }
+
+    // Update
+    for (let i = branch.particles.length - 1; i >= 0; i--) {
+      branch.particles[i].t += branch.particles[i].speed;
+      if (branch.particles[i].t > 1) branch.particles.splice(i, 1);
+    }
+  }
+}
+
+function drawTrajectoryParticles() {
+  for (const branch of branches) {
+    const c = branch.color;
+    for (const p of branch.particles) {
+      const pos = branchPath(branch, p.t);
+      const alpha = Math.sin(p.t * Math.PI) * 0.6;
+
+      const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 5);
+      grd.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha * 0.4})`);
+      grd.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+// Fluctuate outcome metrics
+function updateOutcomes() {
+  if (time % 120 !== 0) return;
+
+  const vals = [
+    { truth: 0.91 + Math.random() * 0.06, risk: 0.05 + Math.random() * 0.08, dv: -(0.03 + Math.random() * 0.02), prob: 0.65 + Math.random() * 0.15 },
+    { truth: 0.75 + Math.random() * 0.12, risk: 0.18 + Math.random() * 0.1, dv: -(0.005 + Math.random() * 0.015), prob: 0.12 + Math.random() * 0.12 },
+    { truth: 0.45 + Math.random() * 0.15, risk: 0.5 + Math.random() * 0.2, dv: 0.01 + Math.random() * 0.03, prob: 0.05 + Math.random() * 0.08 },
+    { truth: 0.15 + Math.random() * 0.12, risk: 0.8 + Math.random() * 0.15, dv: 0.1 + Math.random() * 0.1, prob: 0.01 + Math.random() * 0.03 }
+  ];
+
+  for (let i = 0; i < 4; i++) {
+    const n = i + 1;
+    document.getElementById(`o${n}-truth`).textContent = vals[i].truth.toFixed(2);
+    document.getElementById(`o${n}-risk`).textContent = vals[i].risk.toFixed(2);
+    document.getElementById(`o${n}-dv`).textContent = (vals[i].dv < 0 ? '\u2212' : '+') + Math.abs(vals[i].dv).toFixed(3);
+    document.getElementById(`o${n}-prob`).textContent = vals[i].prob.toFixed(2);
+  }
+
+  // Randomly flip a constraint
+  const constraints = ['c-cite', 'c-risk', 'c-dv', 'c-quorum', 'c-scope', 'c-memory'];
+  constraints.forEach(id => {
+    const el = document.getElementById(id);
+    if (Math.random() < 0.05) {
+      el.textContent = '\u2717';
+      el.className = 'constraint-check check-fail';
+      setTimeout(() => { el.textContent = '\u2713'; el.className = 'constraint-check check-pass'; }, 3000);
+    }
+  });
+}
+
+function render() {
+  time++;
+  ctx.clearRect(0, 0, W, H);
+
+  drawHorizonGrid();
+  drawBranches();
+  drawRoot();
+  drawDecisions();
+  updateTrajectoryParticles();
+  drawTrajectoryParticles();
+  updateOutcomes();
+
+  requestAnimationFrame(render);
+}
+
+window.addEventListener('resize', resize);
+resize();
+render();
+</script>
+</body>
+</html>

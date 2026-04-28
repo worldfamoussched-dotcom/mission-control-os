@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — Stability Attractor Landscape</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308;
+    --bg-panel: rgba(8, 12, 24, 0.85);
+    --border: rgba(60, 180, 220, 0.15);
+    --cyan: #3cb4dc;
+    --cyan-dim: rgba(60, 180, 220, 0.3);
+    --teal: #1a9e8f;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --orange: #e67e22;
+    --gold: #C9A227;
+    --text: #c8d6e5;
+    --text-dim: rgba(200, 214, 229, 0.5);
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* Header */
+  .header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+
+  .plate-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .status-text {
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  /* Canvas */
+  #basin-canvas {
+    position: fixed;
+    top: 48px;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 48px);
+  }
+
+  /* Metrics Panel */
+  .metrics {
+    position: fixed;
+    top: 72px;
+    right: 24px;
+    width: 240px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    backdrop-filter: blur(12px);
+    z-index: 50;
+  }
+
+  .metrics h3 {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .metric-value {
+    font-size: 16px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-value.converging {
+    color: var(--green);
+  }
+
+  .metric-value.stable {
+    color: var(--cyan);
+  }
+
+  .metric-trend {
+    font-size: 9px;
+    margin-left: 4px;
+  }
+
+  /* Legend */
+  .legend {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    display: flex;
+    gap: 24px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    backdrop-filter: blur(12px);
+    z-index: 50;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  /* Region Labels */
+  .region-label {
+    position: fixed;
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  /* Equation */
+  .equation {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    backdrop-filter: blur(12px);
+    z-index: 50;
+    font-size: 13px;
+    color: var(--cyan-dim);
+    letter-spacing: 1px;
+  }
+
+  .equation em {
+    color: var(--cyan);
+    font-style: normal;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate II &mdash; Stability Attractor Landscape</span>
+  </div>
+  <div class="header-right">
+    <div class="status-dot"></div>
+    <span class="status-text">CONVERGING</span>
+  </div>
+</div>
+
+<canvas id="basin-canvas"></canvas>
+
+<div class="metrics">
+  <h3>Live Metrics</h3>
+  <div class="metric-row">
+    <span class="metric-label">V(x)</span>
+    <span class="metric-value converging" id="vx">0.124</span>
+  </div>
+  <div class="metric-row">
+    <span class="metric-label">&Delta;V</span>
+    <span class="metric-value converging" id="dv">&minus;0.037</span>
+  </div>
+  <div class="metric-row">
+    <span class="metric-label">Trend</span>
+    <span class="metric-value stable" id="trend">Converging</span>
+  </div>
+  <div class="metric-row">
+    <span class="metric-label">M<sub>t</sub> &rarr; M*</span>
+    <span class="metric-value stable" id="dist">1.27</span>
+  </div>
+  <div class="metric-row">
+    <span class="metric-label">Coherence</span>
+    <span class="metric-value stable" id="coherence">0.81</span>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-swatch" style="background: #2ecc71;"></div>
+    Oracle Attractor (M*)
+  </div>
+  <div class="legend-item">
+    <div class="legend-swatch" style="background: #3cb4dc;"></div>
+    Current State (M<sub>t</sub>)
+  </div>
+  <div class="legend-item">
+    <div class="legend-swatch" style="background: #e74c3c;"></div>
+    Hallucination Cliff
+  </div>
+  <div class="legend-item">
+    <div class="legend-swatch" style="background: #e67e22;"></div>
+    Drift Valley
+  </div>
+</div>
+
+<div class="equation">
+  <em>V(x)</em> = w<sub>1</sub>H + w<sub>2</sub>C + w<sub>3</sub>(1&minus;R) + w<sub>4</sub>S + w<sub>5</sub>D &nbsp;&nbsp;|&nbsp;&nbsp; <em>&Delta;V &lt; 0</em> &rArr; stable
+</div>
+
+<script>
+const canvas = document.getElementById('basin-canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H, cx, cy;
+let time = 0;
+let particles = [];
+let trailParticles = [];
+
+// State point
+const state = {
+  x: 0.55,
+  y: 0.35,
+  vx: 0,
+  vy: 0,
+  trail: []
+};
+
+// Attractor (M*)
+const attractor = { x: 0.5, y: 0.58 };
+
+// Regions
+const regions = {
+  hallucination: { x: 0.85, y: 0.2 },
+  drift: { x: 0.2, y: 0.35 },
+  instability: { x: 0.7, y: 0.15 }
+};
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight - 48;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = W / 2;
+  cy = H / 2;
+}
+
+// Energy function — creates the basin landscape
+function energy(px, py) {
+  // Main attractor basin
+  const dx = px - attractor.x;
+  const dy = py - attractor.y;
+  const mainBasin = (dx * dx + dy * dy) * 2.5;
+
+  // Hallucination cliff — steep rise on upper-right
+  const hx = px - 0.85;
+  const hy = py - 0.15;
+  const cliff = Math.exp(-((hx * hx + hy * hy) * 8)) * -0.6;
+
+  // Drift valley — shallow secondary minimum
+  const dvx = px - 0.18;
+  const dvy = py - 0.4;
+  const drift = Math.exp(-((dvx * dvx + dvy * dvy) * 12)) * -0.15;
+
+  // Instability ridge
+  const ridge = Math.sin(px * 6 + py * 3) * 0.03;
+
+  return mainBasin + cliff + drift + ridge;
+}
+
+// Gradient of energy (for contours and particle flow)
+function gradient(px, py) {
+  const eps = 0.002;
+  const gx = (energy(px + eps, py) - energy(px - eps, py)) / (2 * eps);
+  const gy = (energy(px, py + eps) - energy(px, py - eps)) / (2 * eps);
+  return { gx, gy };
+}
+
+// Draw contour lines
+function drawContours() {
+  const steps = 18;
+  const resolution = 3;
+
+  for (let level = 0; level < steps; level++) {
+    const threshold = level * 0.06 + 0.01;
+    const alpha = Math.max(0.05, 0.3 - level * 0.015);
+
+    // Color gradient: green at bottom (attractor) to red at top (instability)
+    let r, g, b;
+    if (level < 6) {
+      // Green-teal zone (near attractor)
+      r = 30;
+      g = 160 + level * 10;
+      b = 120 + level * 15;
+    } else if (level < 12) {
+      // Teal-cyan zone (mid energy)
+      r = 40 + (level - 6) * 8;
+      g = 140 + (level - 6) * 5;
+      b = 200;
+    } else {
+      // Orange-red zone (high energy / instability)
+      const t = (level - 12) / 6;
+      r = 180 + t * 50;
+      g = 100 - t * 60;
+      b = 60 - t * 30;
+    }
+
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    ctx.lineWidth = 0.8;
+
+    // March across the grid looking for contour crossings
+    for (let px = 0; px < W; px += resolution) {
+      for (let py = 0; py < H; py += resolution) {
+        const nx = px / W;
+        const ny = py / H;
+        const e = energy(nx, ny);
+
+        if (Math.abs(e - threshold) < 0.008) {
+          ctx.beginPath();
+          ctx.arc(px, py, 0.8, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+}
+
+// Draw energy field as a subtle heatmap
+function drawField() {
+  const res = 6;
+  for (let px = 0; px < W; px += res) {
+    for (let py = 0; py < H; py += res) {
+      const nx = px / W;
+      const ny = py / H;
+      const e = energy(nx, ny);
+
+      // Map energy to color
+      const intensity = Math.min(1, e * 1.5);
+      let r, g, b, a;
+
+      if (intensity < 0.2) {
+        // Deep basin — dark teal glow
+        r = 10;
+        g = 40 + intensity * 200;
+        b = 50 + intensity * 150;
+        a = 0.08 + intensity * 0.1;
+      } else if (intensity < 0.5) {
+        // Mid slope — cyan
+        const t = (intensity - 0.2) / 0.3;
+        r = 20 + t * 40;
+        g = 80 + t * 60;
+        b = 150 + t * 50;
+        a = 0.05 + t * 0.05;
+      } else {
+        // High energy — warm
+        const t = (intensity - 0.5) / 0.5;
+        r = 120 + t * 100;
+        g = 60 - t * 30;
+        b = 40 - t * 20;
+        a = 0.04 + t * 0.06;
+      }
+
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+      ctx.fillRect(px, py, res, res);
+    }
+  }
+}
+
+// Ambient particles flowing along gradient
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < 200; i++) {
+    particles.push({
+      x: Math.random(),
+      y: Math.random(),
+      life: Math.random() * 300 + 100,
+      age: Math.floor(Math.random() * 300),
+      speed: 0.0003 + Math.random() * 0.0005
+    });
+  }
+}
+
+function updateParticles() {
+  for (const p of particles) {
+    p.age++;
+    if (p.age > p.life) {
+      p.x = Math.random();
+      p.y = Math.random();
+      p.age = 0;
+      p.life = Math.random() * 300 + 100;
+    }
+
+    const g = gradient(p.x, p.y);
+    p.x -= g.gx * p.speed;
+    p.y -= g.gy * p.speed;
+
+    // Wrap
+    if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) {
+      p.x = Math.random();
+      p.y = Math.random();
+      p.age = 0;
+    }
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const alpha = Math.min(1, p.age / 30) * Math.max(0, 1 - p.age / p.life) * 0.5;
+    const e = energy(p.x, p.y);
+
+    let r, g, b;
+    if (e < 0.15) {
+      r = 46; g = 204; b = 113; // Green near attractor
+    } else if (e < 0.4) {
+      r = 60; g = 180; b = 220; // Cyan mid
+    } else {
+      r = 230; g = 126; b = 34; // Orange high energy
+    }
+
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(p.x * W, p.y * H, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// State point animation (spiraling toward attractor)
+function updateState() {
+  const g = gradient(state.x, state.y);
+
+  // Damped gradient descent with slight spiral
+  const angle = Math.atan2(g.gy, g.gx);
+  const spiralAngle = angle + 0.3; // Adds spiral effect
+  const mag = Math.sqrt(g.gx * g.gx + g.gy * g.gy);
+
+  state.vx = state.vx * 0.95 - Math.cos(spiralAngle) * mag * 0.0008;
+  state.vy = state.vy * 0.95 - Math.sin(spiralAngle) * mag * 0.0008;
+
+  state.x += state.vx;
+  state.y += state.vy;
+
+  // Store trail
+  state.trail.push({ x: state.x, y: state.y, t: time });
+  if (state.trail.length > 400) state.trail.shift();
+
+  // Reset if it reaches the attractor (to show the journey again)
+  const dx = state.x - attractor.x;
+  const dy = state.y - attractor.y;
+  if (Math.sqrt(dx * dx + dy * dy) < 0.015) {
+    // Respawn from a random high-energy position
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 0.25 + Math.random() * 0.2;
+    state.x = attractor.x + Math.cos(angle) * dist;
+    state.y = attractor.y + Math.sin(angle) * dist;
+    state.vx = 0;
+    state.vy = 0;
+    state.trail = [];
+  }
+
+  // Update metrics
+  const vx = energy(state.x, state.y);
+  const prevVx = state.trail.length > 10 ? energy(state.trail[state.trail.length - 10].x, state.trail[state.trail.length - 10].y) : vx;
+  const dv = vx - prevVx;
+  const distToAttractor = Math.sqrt(dx * dx + dy * dy);
+
+  document.getElementById('vx').textContent = vx.toFixed(3);
+  document.getElementById('dv').textContent = (dv < 0 ? '\u2212' : '+') + Math.abs(dv).toFixed(4);
+  document.getElementById('dist').textContent = distToAttractor.toFixed(3);
+  document.getElementById('coherence').textContent = (1 - Math.min(1, distToAttractor * 2)).toFixed(2);
+
+  const dvEl = document.getElementById('dv');
+  const trendEl = document.getElementById('trend');
+  if (dv < -0.0001) {
+    dvEl.className = 'metric-value converging';
+    trendEl.textContent = 'Converging';
+    trendEl.className = 'metric-value converging';
+  } else if (dv > 0.0001) {
+    dvEl.className = 'metric-value';
+    dvEl.style.color = '#e74c3c';
+    trendEl.textContent = 'Diverging';
+    trendEl.className = 'metric-value';
+    trendEl.style.color = '#e74c3c';
+  } else {
+    dvEl.className = 'metric-value stable';
+    trendEl.textContent = 'Stable';
+    trendEl.className = 'metric-value stable';
+  }
+}
+
+function drawState() {
+  // Trail
+  if (state.trail.length > 1) {
+    for (let i = 1; i < state.trail.length; i++) {
+      const alpha = (i / state.trail.length) * 0.6;
+      const prev = state.trail[i - 1];
+      const curr = state.trail[i];
+      ctx.strokeStyle = `rgba(60, 180, 220, ${alpha})`;
+      ctx.lineWidth = 1 + (i / state.trail.length);
+      ctx.beginPath();
+      ctx.moveTo(prev.x * W, prev.y * H);
+      ctx.lineTo(curr.x * W, curr.y * H);
+      ctx.stroke();
+    }
+  }
+
+  // State point
+  const sx = state.x * W;
+  const sy = state.y * H;
+
+  // Outer glow
+  const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, 20);
+  grd.addColorStop(0, 'rgba(60, 180, 220, 0.4)');
+  grd.addColorStop(1, 'rgba(60, 180, 220, 0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Inner point
+  ctx.fillStyle = '#3cb4dc';
+  ctx.beginPath();
+  ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label
+  ctx.font = '10px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(60, 180, 220, 0.8)';
+  ctx.fillText('M\u209C', sx + 10, sy - 8);
+}
+
+// Draw attractor point
+function drawAttractor() {
+  const ax = attractor.x * W;
+  const ay = attractor.y * H;
+  const pulse = Math.sin(time * 0.03) * 0.3 + 0.7;
+
+  // Outer rings
+  for (let i = 3; i >= 1; i--) {
+    const r = 8 + i * 8 + Math.sin(time * 0.02 + i) * 3;
+    ctx.strokeStyle = `rgba(46, 204, 113, ${0.1 * pulse / i})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(ax, ay, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Glow
+  const grd = ctx.createRadialGradient(ax, ay, 0, ax, ay, 25);
+  grd.addColorStop(0, `rgba(46, 204, 113, ${0.5 * pulse})`);
+  grd.addColorStop(1, 'rgba(46, 204, 113, 0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(ax, ay, 25, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Core
+  ctx.fillStyle = '#2ecc71';
+  ctx.beginPath();
+  ctx.arc(ax, ay, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label
+  ctx.font = '11px "Space Grotesk"';
+  ctx.fillStyle = 'rgba(46, 204, 113, 0.9)';
+  ctx.fillText('M*', ax + 14, ay + 4);
+  ctx.font = '9px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(46, 204, 113, 0.5)';
+  ctx.fillText('ORACLE ATTRACTOR', ax + 14, ay + 18);
+}
+
+// Draw danger zones
+function drawRegions() {
+  // Hallucination cliff
+  const hx = regions.hallucination.x * W;
+  const hy = regions.hallucination.y * H;
+  const pulse = Math.sin(time * 0.04) * 0.2 + 0.8;
+
+  const hGrd = ctx.createRadialGradient(hx, hy, 0, hx, hy, 80);
+  hGrd.addColorStop(0, `rgba(231, 76, 60, ${0.12 * pulse})`);
+  hGrd.addColorStop(1, 'rgba(231, 76, 60, 0)');
+  ctx.fillStyle = hGrd;
+  ctx.beginPath();
+  ctx.arc(hx, hy, 80, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.font = '10px "Space Grotesk"';
+  ctx.fillStyle = `rgba(231, 76, 60, ${0.6 * pulse})`;
+  ctx.fillText('HALLUCINATION', hx - 40, hy - 15);
+  ctx.fillText('CLIFF', hx - 15, hy);
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(231, 76, 60, 0.35)';
+  ctx.fillText('\u0394V >> 0', hx - 18, hy + 15);
+
+  // Drift valley
+  const dvx = regions.drift.x * W;
+  const dvy = regions.drift.y * H;
+
+  const dGrd = ctx.createRadialGradient(dvx, dvy, 0, dvx, dvy, 60);
+  dGrd.addColorStop(0, 'rgba(230, 126, 34, 0.1)');
+  dGrd.addColorStop(1, 'rgba(230, 126, 34, 0)');
+  ctx.fillStyle = dGrd;
+  ctx.beginPath();
+  ctx.arc(dvx, dvy, 60, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.font = '10px "Space Grotesk"';
+  ctx.fillStyle = 'rgba(230, 126, 34, 0.6)';
+  ctx.fillText('DRIFT VALLEY', dvx - 35, dvy - 10);
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(230, 126, 34, 0.35)';
+  ctx.fillText('weak coherence', dvx - 35, dvy + 5);
+
+  // Instability region
+  const ix = regions.instability.x * W;
+  const iy = regions.instability.y * H;
+
+  ctx.font = '10px "Space Grotesk"';
+  ctx.fillStyle = 'rgba(200, 160, 80, 0.4)';
+  ctx.fillText('HIGH UNCERTAINTY', ix - 45, iy);
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = 'rgba(200, 160, 80, 0.25)';
+  ctx.fillText('\u0394V \u2248 0', ix - 15, iy + 14);
+}
+
+// Repair trajectory arrow
+function drawRepairTrajectory() {
+  // Draw a faint suggested repair path from drift valley to attractor
+  const startX = regions.drift.x;
+  const startY = regions.drift.y;
+  const endX = attractor.x;
+  const endY = attractor.y;
+
+  const steps = 40;
+  const alpha = 0.15 + Math.sin(time * 0.02) * 0.05;
+
+  ctx.strokeStyle = `rgba(46, 204, 113, ${alpha})`;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    // Curved path
+    const mx = startX + (endX - startX) * t;
+    const my = startY + (endY - startY) * t;
+    // Add curve
+    const curve = Math.sin(t * Math.PI) * 0.08;
+    const px = (mx + curve) * W;
+    const py = my * H;
+
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Label
+  const labelX = (startX + endX) / 2 * W + 30;
+  const labelY = ((startY + endY) / 2 - 0.03) * H;
+  ctx.font = '8px "IBM Plex Mono"';
+  ctx.fillStyle = `rgba(46, 204, 113, ${alpha + 0.1})`;
+  ctx.fillText('repair trajectory', labelX, labelY);
+}
+
+// Main render loop
+function render() {
+  time++;
+  ctx.clearRect(0, 0, W, H);
+
+  drawField();
+  drawContours();
+  drawRepairTrajectory();
+  drawRegions();
+  updateParticles();
+  drawParticles();
+  drawAttractor();
+  updateState();
+  drawState();
+
+  requestAnimationFrame(render);
+}
+
+// Init
+window.addEventListener('resize', resize);
+resize();
+initParticles();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: #030308;
+  color: #c8d6e5;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(60, 180, 220, 0.15); border-radius: 2px; }
+
+/* Glass panel base */
+.glass-panel {
+  background: rgba(8, 12, 24, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(60, 180, 220, 0.12);
+  border-radius: 8px;
+}
+
+/* Telemetry label */
+.telemetry-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Pulse animation */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}

@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle OS — Belief Propagation Lattice</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #030308;
+    --bg-panel: rgba(8, 12, 24, 0.88);
+    --border: rgba(60, 180, 220, 0.12);
+    --cyan: #3cb4dc;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --orange: #e67e22;
+    --gold: #C9A227;
+    --purple: #9b59b6;
+    --teal: #1a9e8f;
+    --text: #c8d6e5;
+    --text-dim: rgba(200, 214, 229, 0.45);
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    height: 100vh; width: 100vw;
+  }
+
+  .header {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 44px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel); backdrop-filter: blur(16px); z-index: 200;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--cyan); }
+  .plate-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .phase-indicator {
+    display: flex; gap: 4px; align-items: center;
+  }
+
+  .phase-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; letter-spacing: 1px;
+    border: 1px solid var(--border);
+    transition: all 0.5s;
+  }
+
+  .phase-dot.active {
+    border-color: var(--cyan);
+    background: rgba(60, 180, 220, 0.12);
+    color: var(--cyan);
+    box-shadow: 0 0 12px rgba(60, 180, 220, 0.15);
+  }
+
+  .phase-dot.complete {
+    border-color: var(--green);
+    background: rgba(46, 204, 113, 0.1);
+    color: var(--green);
+  }
+
+  .phase-dot.pending { color: var(--text-dim); }
+
+  .phase-line {
+    width: 20px; height: 1px;
+    background: var(--border);
+  }
+
+  #main-canvas {
+    position: fixed; top: 44px; left: 0;
+    width: 100%; height: calc(100vh - 44px);
+  }
+
+  .metrics-panel {
+    position: fixed; top: 68px; right: 20px;
+    width: 210px; background: var(--bg-panel);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; backdrop-filter: blur(12px); z-index: 50;
+  }
+
+  .metrics-panel h3 {
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--cyan); margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+
+  .m-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .m-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+  .m-val { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .state-panel {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 24px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 24px;
+    backdrop-filter: blur(12px); z-index: 50;
+  }
+
+  .state-card {
+    text-align: center; min-width: 120px;
+    padding: 8px 12px; border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.5s;
+  }
+
+  .state-card.active {
+    border-color: var(--cyan);
+    background: rgba(60, 180, 220, 0.06);
+  }
+
+  .state-card-title {
+    font-family: var(--font-display); font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .state-card-desc {
+    font-size: 8px; color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+
+  .equation {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 16px;
+    backdrop-filter: blur(12px); z-index: 50;
+    font-size: 10px; color: rgba(60, 180, 220, 0.4);
+    line-height: 1.9;
+  }
+
+  .equation em { color: var(--cyan); font-style: normal; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="logo">Oracle OS</span>
+    <span class="plate-label">Plate IV — Belief Propagation Lattice</span>
+  </div>
+  <div class="phase-indicator">
+    <div class="phase-dot complete" id="ph1">1</div>
+    <div class="phase-line"></div>
+    <div class="phase-dot active" id="ph2">2</div>
+    <div class="phase-line"></div>
+    <div class="phase-dot pending" id="ph3">3</div>
+  </div>
+</div>
+
+<canvas id="main-canvas"></canvas>
+
+<div class="metrics-panel">
+  <h3>Belief State</h3>
+  <div class="m-row">
+    <span class="m-label">Nodes</span>
+    <span class="m-val" style="color: var(--cyan);" id="bp-nodes">64</span>
+  </div>
+  <div class="m-row">
+    <span class="m-label">Infected</span>
+    <span class="m-val" style="color: var(--red);" id="bp-infected">0</span>
+  </div>
+  <div class="m-row">
+    <span class="m-label">Contained</span>
+    <span class="m-val" style="color: var(--orange);" id="bp-contained">0</span>
+  </div>
+  <div class="m-row">
+    <span class="m-label">Repaired</span>
+    <span class="m-val" style="color: var(--green);" id="bp-repaired">0</span>
+  </div>
+  <div class="m-row">
+    <span class="m-label">Trust &Delta;</span>
+    <span class="m-val" style="color: var(--cyan);" id="bp-trust">0.000</span>
+  </div>
+  <div class="m-row">
+    <span class="m-label">Phase</span>
+    <span class="m-val" style="color: var(--gold);" id="bp-phase">STABLE</span>
+  </div>
+</div>
+
+<div class="state-panel">
+  <div class="state-card active" id="sc1">
+    <div class="state-card-title" style="color: var(--green);">Stable Field</div>
+    <div class="state-card-desc">Coherent belief state</div>
+  </div>
+  <div class="state-card" id="sc2">
+    <div class="state-card-title" style="color: var(--red);">Shock Injected</div>
+    <div class="state-card-desc">Contradiction event</div>
+  </div>
+  <div class="state-card" id="sc3">
+    <div class="state-card-title" style="color: var(--teal);">Immune Response</div>
+    <div class="state-card-desc">Containment + repair</div>
+  </div>
+</div>
+
+<div class="equation">
+  <em>P(h|E<sub>1</sub>...E<sub>n</sub>)</em> &prop; &Pi; P<sub>i</sub>(h)<br>
+  <em>&Delta;b<sub>j</sub></em> = T<sub>ij</sub> &middot; &Delta;b<sub>i</sub><br>
+  <em>m<sub>i&rarr;j</sub>(x<sub>j</sub>)</em> = &Sigma;<sub>x<sub>i</sub></sub> &phi;(x<sub>i</sub>,x<sub>j</sub>) &middot; b<sub>i</sub>(x<sub>i</sub>)
+</div>
+
+<script>
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+let time = 0;
+
+// ─── Belief Graph ───
+const GRID = 8;
+const SPACING_X = 80;
+const SPACING_Y = 70;
+const beliefNodes = [];
+const beliefEdges = [];
+
+// States: stable, infected, contained, repaired, immune
+function initGraph() {
+  beliefNodes.length = 0;
+  beliefEdges.length = 0;
+
+  for (let row = 0; row < GRID; row++) {
+    for (let col = 0; col < GRID; col++) {
+      beliefNodes.push({
+        id: row * GRID + col,
+        row, col,
+        state: 'stable',
+        belief: 0.8 + Math.random() * 0.2,
+        trust: 0.85 + Math.random() * 0.1,
+        pulseOffset: Math.random() * Math.PI * 2,
+        infectionTime: 0,
+        containTime: 0,
+        repairTime: 0,
+        wobble: { x: 0, y: 0 }
+      });
+    }
+  }
+
+  // Edges: connect to neighbors
+  for (let row = 0; row < GRID; row++) {
+    for (let col = 0; col < GRID; col++) {
+      const id = row * GRID + col;
+      if (col < GRID - 1) beliefEdges.push({ a: id, b: id + 1, strength: 0.5 + Math.random() * 0.5 });
+      if (row < GRID - 1) beliefEdges.push({ a: id, b: id + GRID, strength: 0.5 + Math.random() * 0.5 });
+      // Diagonal (sparse)
+      if (col < GRID - 1 && row < GRID - 1 && Math.random() < 0.3) {
+        beliefEdges.push({ a: id, b: id + GRID + 1, strength: 0.2 + Math.random() * 0.3 });
+      }
+    }
+  }
+}
+
+// ─── Phase System ───
+let currentPhase = 0; // 0=stable, 1=shock, 2=immune
+let phaseTimer = 0;
+const PHASE_DURATIONS = [300, 200, 350]; // frames per phase
+let infectedCount = 0;
+let containedCount = 0;
+let repairedCount = 0;
+let shockCenter = { row: 0, col: 0 };
+
+function transitionPhase() {
+  currentPhase = (currentPhase + 1) % 3;
+  phaseTimer = 0;
+
+  // Update UI
+  const phases = ['ph1', 'ph2', 'ph3'];
+  const stateCards = ['sc1', 'sc2', 'sc3'];
+  const phaseNames = ['STABLE', 'SHOCK', 'IMMUNE'];
+
+  phases.forEach((p, i) => {
+    const el = document.getElementById(p);
+    el.className = 'phase-dot ' + (i === currentPhase ? 'active' : i < currentPhase ? 'complete' : 'pending');
+  });
+
+  stateCards.forEach((s, i) => {
+    document.getElementById(s).className = 'state-card' + (i === currentPhase ? ' active' : '');
+  });
+
+  document.getElementById('bp-phase').textContent = phaseNames[currentPhase];
+
+  if (currentPhase === 0) {
+    // Reset all to stable
+    beliefNodes.forEach(n => {
+      n.state = 'stable';
+      n.belief = 0.8 + Math.random() * 0.2;
+      n.trust = 0.85 + Math.random() * 0.1;
+    });
+    infectedCount = 0;
+    containedCount = 0;
+    repairedCount = 0;
+  }
+
+  if (currentPhase === 1) {
+    // Inject shock
+    shockCenter = {
+      row: 2 + Math.floor(Math.random() * 4),
+      col: 2 + Math.floor(Math.random() * 4)
+    };
+    const centerNode = beliefNodes[shockCenter.row * GRID + shockCenter.col];
+    centerNode.state = 'infected';
+    centerNode.infectionTime = time;
+    centerNode.belief = 0.1;
+    infectedCount = 1;
+  }
+}
+
+function updatePhase() {
+  phaseTimer++;
+
+  if (currentPhase === 1) {
+    // Spread infection
+    if (phaseTimer % 15 === 0) {
+      const newInfections = [];
+      beliefNodes.forEach(n => {
+        if (n.state === 'infected') {
+          // Spread to neighbors
+          const neighbors = getNeighbors(n.id);
+          neighbors.forEach(nId => {
+            const neighbor = beliefNodes[nId];
+            if (neighbor.state === 'stable' && Math.random() < 0.35) {
+              newInfections.push(nId);
+            }
+          });
+        }
+      });
+      newInfections.forEach(id => {
+        beliefNodes[id].state = 'infected';
+        beliefNodes[id].infectionTime = time;
+        beliefNodes[id].belief = 0.1 + Math.random() * 0.2;
+        infectedCount++;
+      });
+    }
+  }
+
+  if (currentPhase === 2) {
+    // Immune response: contain then repair
+    if (phaseTimer % 10 === 0) {
+      // First contain
+      const infected = beliefNodes.filter(n => n.state === 'infected');
+      if (infected.length > 0) {
+        const target = infected[Math.floor(Math.random() * infected.length)];
+        target.state = 'contained';
+        target.containTime = time;
+        containedCount++;
+        infectedCount--;
+      }
+
+      // Then repair contained
+      const contained = beliefNodes.filter(n => n.state === 'contained' && time - n.containTime > 40);
+      if (contained.length > 0) {
+        const target = contained[0];
+        target.state = 'repaired';
+        target.repairTime = time;
+        target.belief = 0.85 + Math.random() * 0.1;
+        target.trust = 0.8 + Math.random() * 0.15;
+        repairedCount++;
+        containedCount--;
+      }
+    }
+  }
+
+  // Auto-transition
+  if (phaseTimer >= PHASE_DURATIONS[currentPhase]) {
+    transitionPhase();
+  }
+
+  // Update metrics
+  document.getElementById('bp-infected').textContent = beliefNodes.filter(n => n.state === 'infected').length;
+  document.getElementById('bp-contained').textContent = beliefNodes.filter(n => n.state === 'contained').length;
+  document.getElementById('bp-repaired').textContent = beliefNodes.filter(n => n.state === 'repaired').length;
+}
+
+function getNeighbors(id) {
+  const neighbors = [];
+  beliefEdges.forEach(e => {
+    if (e.a === id) neighbors.push(e.b);
+    if (e.b === id) neighbors.push(e.a);
+  });
+  return neighbors;
+}
+
+// ─── Rendering ───
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight - 44;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = W / 2;
+  cy = H / 2;
+}
+
+function getNodePos(node) {
+  const gridW = (GRID - 1) * SPACING_X;
+  const gridH = (GRID - 1) * SPACING_Y;
+  const offsetX = cx - gridW / 2;
+  const offsetY = cy - gridH / 2 - 20;
+
+  // Add wobble for infected nodes
+  let wx = 0, wy = 0;
+  if (node.state === 'infected') {
+    const intensity = 3;
+    wx = Math.sin(time * 0.15 + node.id * 1.7) * intensity;
+    wy = Math.cos(time * 0.12 + node.id * 2.3) * intensity;
+  }
+
+  return {
+    x: offsetX + node.col * SPACING_X + wx,
+    y: offsetY + node.row * SPACING_Y + wy
+  };
+}
+
+const stateColors = {
+  stable:    { r: 60, g: 180, b: 220 },
+  infected:  { r: 231, g: 76, b: 60 },
+  contained: { r: 230, g: 126, b: 34 },
+  repaired:  { r: 46, g: 204, b: 113 },
+  immune:    { r: 26, g: 158, b: 143 }
+};
+
+function drawEdges() {
+  for (const edge of beliefEdges) {
+    const a = beliefNodes[edge.a];
+    const b = beliefNodes[edge.b];
+    const pa = getNodePos(a);
+    const pb = getNodePos(b);
+
+    let alpha = edge.strength * 0.12;
+    let color;
+
+    // Color based on states
+    if (a.state === 'infected' || b.state === 'infected') {
+      color = stateColors.infected;
+      alpha = 0.2 + Math.sin(time * 0.1) * 0.1;
+    } else if (a.state === 'contained' || b.state === 'contained') {
+      color = stateColors.contained;
+      alpha = 0.15;
+    } else if (a.state === 'repaired' && b.state === 'repaired') {
+      color = stateColors.repaired;
+      alpha = 0.15;
+    } else {
+      color = stateColors.stable;
+    }
+
+    ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
+    ctx.lineWidth = edge.strength * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+  }
+}
+
+// Message particles along edges
+const msgParticles = [];
+
+function spawnEdgeMessage() {
+  if (msgParticles.length > 40) return;
+  // Pick an edge between nodes of different states
+  const candidates = beliefEdges.filter(e => {
+    const a = beliefNodes[e.a];
+    const b = beliefNodes[e.b];
+    return (a.state !== b.state) || (a.state === 'infected');
+  });
+
+  if (candidates.length === 0) return;
+  const edge = candidates[Math.floor(Math.random() * candidates.length)];
+  const fromNode = beliefNodes[edge.a];
+
+  msgParticles.push({
+    edge,
+    progress: 0,
+    speed: 0.015 + Math.random() * 0.01,
+    color: stateColors[fromNode.state],
+    forward: Math.random() < 0.5
+  });
+}
+
+function updateAndDrawMessages() {
+  for (let i = msgParticles.length - 1; i >= 0; i--) {
+    const m = msgParticles[i];
+    m.progress += m.speed;
+    if (m.progress >= 1) { msgParticles.splice(i, 1); continue; }
+
+    const a = getNodePos(beliefNodes[m.edge.a]);
+    const b = getNodePos(beliefNodes[m.edge.b]);
+    const t = m.forward ? m.progress : 1 - m.progress;
+    const x = a.x + (b.x - a.x) * t;
+    const y = a.y + (b.y - a.y) * t;
+    const alpha = Math.sin(m.progress * Math.PI) * 0.7;
+
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, 6);
+    grd.addColorStop(0, `rgba(${m.color.r}, ${m.color.g}, ${m.color.b}, ${alpha * 0.5})`);
+    grd.addColorStop(1, `rgba(${m.color.r}, ${m.color.g}, ${m.color.b}, 0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(${m.color.r}, ${m.color.g}, ${m.color.b}, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawNodes() {
+  for (const node of beliefNodes) {
+    const pos = getNodePos(node);
+    const pulse = Math.sin(time * 0.025 + node.pulseOffset) * 0.2 + 0.8;
+    const color = stateColors[node.state];
+    const size = node.state === 'infected' ? 6 : node.state === 'contained' ? 5 : 4;
+
+    // Containment boundary
+    if (node.state === 'contained') {
+      ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Infection radiation
+    if (node.state === 'infected') {
+      const rad = 12 + Math.sin(time * 0.08 + node.id) * 5;
+      ctx.strokeStyle = `rgba(231, 76, 60, ${0.15 * pulse})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Repair glow
+    if (node.state === 'repaired') {
+      const age = time - node.repairTime;
+      if (age < 60) {
+        const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 20);
+        grd.addColorStop(0, `rgba(46, 204, 113, ${0.2 * (1 - age / 60)})`);
+        grd.addColorStop(1, 'rgba(46, 204, 113, 0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Glow
+    const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, size * 3);
+    grd.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${0.2 * pulse})`);
+    grd.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, size * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Node
+    ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${0.6 + pulse * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, size * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Belief value (subtle)
+    if (node.state === 'infected' || node.state === 'contained') {
+      ctx.font = '7px "IBM Plex Mono"';
+      ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, 0.4)`;
+      ctx.textAlign = 'center';
+      ctx.fillText(node.belief.toFixed(2), pos.x, pos.y + size + 12);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+// Shock wave effect
+let shockWave = { active: false, radius: 0, alpha: 0 };
+
+function drawShockWave() {
+  if (currentPhase === 1 && phaseTimer < 30) {
+    const pos = getNodePos(beliefNodes[shockCenter.row * GRID + shockCenter.col]);
+    const r = phaseTimer * 8;
+    const alpha = 0.3 * (1 - phaseTimer / 30);
+
+    ctx.strokeStyle = `rgba(231, 76, 60, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner flash
+    const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, r);
+    grd.addColorStop(0, `rgba(231, 76, 60, ${alpha * 0.1})`);
+    grd.addColorStop(1, 'rgba(231, 76, 60, 0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ─── Immune boundary visualization ───
+function drawImmuneBoundary() {
+  if (currentPhase !== 2) return;
+
+  const infected = beliefNodes.filter(n => n.state === 'infected' || n.state === 'contained');
+  if (infected.length === 0) return;
+
+  // Draw a loose boundary around infected zone
+  ctx.strokeStyle = 'rgba(230, 126, 34, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+
+  for (const node of infected) {
+    const pos = getNodePos(node);
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+// ─── Main ───
+function render() {
+  time++;
+  ctx.clearRect(0, 0, W, H);
+
+  updatePhase();
+  drawEdges();
+  drawImmuneBoundary();
+  drawShockWave();
+
+  if (time % 5 === 0) spawnEdgeMessage();
+  updateAndDrawMessages();
+
+  drawNodes();
+
+  // Trust delta
+  const avgBelief = beliefNodes.reduce((s, n) => s + n.belief, 0) / beliefNodes.length;
+  document.getElementById('bp-trust').textContent = (avgBelief - 0.9).toFixed(3);
+
+  requestAnimationFrame(render);
+}
+
+window.addEventListener('resize', resize);
+resize();
+initGraph();
+render();
+</script>
+</body>
+</html>
