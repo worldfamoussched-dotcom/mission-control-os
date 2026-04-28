@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { worlds, worldIds, type WorldId } from "../lib/worlds";
-import { useOracleStore } from "../store/useOracleStore";
 
 const worldIcons: Record<WorldId, string> = {
   batman: "\u2666",
@@ -14,10 +13,8 @@ const worldIcons: Record<WorldId, string> = {
 
 export default function HomePage() {
   const router = useRouter();
-  const setWorld = useOracleStore((s) => s.setWorld);
 
   function enter(id: WorldId) {
-    setWorld(id);
     router.push(`/${id}`);
   }
 
