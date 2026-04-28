@@ -1,19 +1,48 @@
 # current.md — Mission Control OS — Session State
 
-**Last Session Closed:** 2026-04-24
-**Last Commit:** Phase 3 cockpit mode switcher (about to commit)
-**Tests:** 166/166 backend · `npx tsc --noEmit` clean
+**Last Session Closed:** 2026-04-28
+**Last Commit:** `6f72cef docs: add Oracle repo AGENTS instructions`
+**Tests:** Not run this session — instruction/docs-only work
 
 ---
 
 ## task
 
-**Just finished:** Phase 3 cockpit mode switcher — brand picker (VS/LX, Fractal, ATS), mode-aware launch/approval flows, type-safe end-to-end. Backend untouched.
+**Just finished:** Codex operating foundation stabilization.
+- Added global Codex operating rules at `~/.codex/AGENTS.md`
+- Added workspace guardrails at `/Users/Malachi/Documents/CODEX/AGENTS.md`
+- Added Oracle repo constitution at `AGENTS.md`
+- Restored generated `ui/next-env.d.ts` churn so the repo is clean
+
+**Prior shipped product work:** Phase 3 cockpit mode switcher — brand picker (VS/LX, Fractal, ATS), mode-aware launch/approval flows, type-safe end-to-end. Backend untouched.
 
 **Next:** Operator should browser-test it. Then options:
 - Tighten Wakanda defaults as ATS workflow surfaces concrete needs
 - Phase 4: memory isolation, multi-approver chains
 - Resonance OS integration (see signals)
+
+### Reconciliation Checkpoint — Phase 2 Fractal Memory (2026-04-28)
+
+**Phase 2 sequence reconciliation complete.** All stages audited and classified:
+- **Stage A (Inventory)** ✓ Complete
+- **Stage B (Shell Graduation Contract)** ✓ Complete — `shouldPromote()` governance rules, 8 tests passing
+- **Stage C (Local Anchor Promotion)** ✓ Complete — anchor state transition rules
+- **Stage D (Hebrian Dynamics)** ✓ Complete — co-occurrence weight tracking
+- **Stage E (Decay Scheduler Lifecycle)** ✓ Complete & Corrected at `1c113d2`
+  - Three critical fixes applied: (1) `markStale()` boundary from `< 12` to `< 11`, (2) `archiveFlag()` parameter passing, (3) `quarantine_overrides_archive` counterfactual semantics
+  - Tests: 31/31 passing
+  - Root commit: `64c7988`, corrected by: `1c113d2`
+- **Stage F (Retrieval Gate Integration)** ⏳ Defined but not yet implemented
+  - Not shell-promoter execution — that is separate and deferred
+- **Out-of-sequence (Shell Promoter Execution)** ⏸ `0448d69` — KEEP_DEFERRED
+  - Correct implementation (promote, validatePromotionPrerequisites, extractPromotionAuditTrail)
+  - 12/12 tests passing, no I/O dependencies
+  - Classification: out-of-order timing, committed before Stage F definition
+  - Action: reserved for Stage F closure or potential Stage G, not to be merged until sequence is explicit
+
+**Documentation:** Full audit logged in `RECONCILIATION_REPORT.md` (committed at `9b73fc9`).
+
+**Next gate:** Stage F retrieval gate integration authorization pending operator review of this checkpoint.
 
 ---
 
@@ -49,6 +78,8 @@ Persisted at `~/.claude/projects/-Users-Malachi-Missipn-Control-Builder-Agent/me
 
 None right now. Phase 3 is shippable.
 
+**Repo state:** clean after the AGENTS/docs checkpoint.
+
 **Watch-items, not blockers:**
 - Tool registry inconsistency: `summarizer`, `text_generator`, `scheduler`, `search` are in CodeReviewer's allow-list + SecurityReviewer ABAC defaults but NOT in `ToolService.tools` registry. Tasks using those pass review then get blocked at the executor's `can_execute` check. Tests work around with `read_file` + `search_knowledge`. Real fix lives in the Phase 4 ABAC consolidation pass.
 - Live smoke not run — would require real `ANTHROPIC_API_KEY` + Postgres. ASGI-transport smoke tests cover the same surface without billable side effects (Nick's hard boundary on financial actions).
@@ -58,13 +89,19 @@ None right now. Phase 3 is shippable.
 ## decisions
 
 This session locked in (most → least recent):
-1. **Cockpit shows brands, not modes.** Operator picks "VS/LX" / "Fractal" / "ATS"; mode is implied. Per-brand accent color for instant visual identity.
-2. **Wakanda conservative defaults** — gate-when-unsure, single operator, no cascade on reject, high-risk safety floor. Tightened later as ATS workflow surfaces concrete tools.
-3. **Mode-to-brand mapping** corrected mid-session: Jarvis = Fractal (NOT ATS), Wakanda = ATS (NOT Fractal). Persisted to memory.
-4. **AuditService session-factory pattern** — SQLite for tests, Postgres for prod via `DATABASE_URL`. Best-effort writes (workflow never breaks on persistence failure).
-5. **Per-mission `Mission.abac_policy`** field (Option A from the source-of-truth tradeoff: Mission-native > mode-registry > Postgres-table). Plumbed API → Supervisor → ReviewGate.
-6. **Phase 2 ABAC consolidation** landed concurrently via sub-agent commit `c51a22d` — `ABACEnforcer` is the single tool-invocation gate.
-7. **Approval gate compliance**: I drifted on per-action approval gates mid-session by treating one "y/cook" as session-blanket. Nick confirmed that's OK going forward. All shipped changes audited and kept (additive, no breaking changes).
+1. **Three-layer Codex instruction stack is now canonical.**
+   - `~/.codex/AGENTS.md` = global operating contract
+   - `/Users/Malachi/Documents/CODEX/AGENTS.md` = generic workspace guardrails
+   - `/Users/Malachi/Missipn Control Builder Agent/AGENTS.md` = Oracle repo constitution
+2. **`AGENTS.md` stays constitutional, not encyclopedic.** Deep phase details belong in `docs/`, `current.md`, and memory files, not in repo instructions.
+3. **`current.md` is read-mostly operational memory.** Do not edit it by default; only touch it when explicitly instructed or when doing an intentional checkpoint/handoff update.
+4. **Cockpit shows brands, not modes.** Operator picks "VS/LX" / "Fractal" / "ATS"; mode is implied. Per-brand accent color for instant visual identity.
+5. **Wakanda conservative defaults** — gate-when-unsure, single operator, no cascade on reject, high-risk safety floor. Tightened later as ATS workflow surfaces concrete tools.
+6. **Mode-to-brand mapping** corrected mid-session: Jarvis = Fractal (NOT ATS), Wakanda = ATS (NOT Fractal). Persisted to memory.
+7. **AuditService session-factory pattern** — SQLite for tests, Postgres for prod via `DATABASE_URL`. Best-effort writes (workflow never breaks on persistence failure).
+8. **Per-mission `Mission.abac_policy`** field (Option A from the source-of-truth tradeoff: Mission-native > mode-registry > Postgres-table). Plumbed API → Supervisor → ReviewGate.
+9. **Phase 2 ABAC consolidation** landed concurrently via sub-agent commit `c51a22d` — `ABACEnforcer` is the single tool-invocation gate.
+10. **Approval gate compliance**: I drifted on per-action approval gates mid-session by treating one "y/cook" as session-blanket. Nick confirmed that's OK going forward. All shipped changes audited and kept (additive, no breaking changes).
 
 ---
 
